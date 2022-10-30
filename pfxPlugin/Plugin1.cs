@@ -11,6 +11,7 @@ namespace pfxPlugin
     public class Plugin1 : PluginBase
     {
         private string pfxRecordId = null;
+        private ILocalPluginContext _pluginContext;
         public Plugin1(string unsecureConfiguration, string secureConfiguration)
             : base(typeof(Plugin1))
         {
@@ -21,29 +22,33 @@ namespace pfxPlugin
 
         protected override void ExecuteDataversePlugin(ILocalPluginContext localPluginContext)
         {
+            localPluginContext.Trace("Begin");
             if (localPluginContext == null)
             {
                 throw new ArgumentNullException(nameof(localPluginContext));
             }
+            _pluginContext = localPluginContext;
 
-            var context = localPluginContext.PluginExecutionContext;
-
-            //get pfx by id
-            IOrganizationService orgService = localPluginContext.OrgSvcFactory.CreateOrganizationService(null);
-
-            var pfxRecord = orgService.Retrieve("pl_pfx", new Guid(pfxRecordId), new ColumnSet("pl_pfxstring"));
-
-            if(pfxRecord != null){
+            if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
+                _pluginContext.Trace("have Target");
+                var pfxstring = entity.GetAttributeValue<string>("pl_pfxstring");
+                _pluginContext.Trace($"pl_pfxstring: {pfxstring}");
+                string global = "{\"A\":\"ABC\",\"B\":{\"Inner\":123}}";
+                //_pluginContext.Trace(global);
+                var parameters = (RecordValue)FormulaValue.FromJson(global);
+                _pluginContext.Trace(parameters.ToString());
                 var config = new PowerFxConfig();
                 var engine = new RecalcEngine(config);
-                var result = engine.Eval(pfxRecord.GetAttributeValue<string>("pl_pfxstring"));
+                
+                var result = engine.Eval(pfxstring, parameters);
 
-                localPluginContext.Trace(PrintResult(result));
+                localPluginContext.Trace(PrintResult(result));                
             }
         }
 
-        static string PrintResult(object value, Boolean minimal = false)
+        string PrintResult(object value, Boolean minimal = false)
         {
+            _pluginContext.Trace("Entered PrintResult");
             string resultString;
 
             if (value is BlankValue)
