@@ -8,7 +8,7 @@ This repo introduces 5 main elements for addressing this challenge:
 - PowerFX Editor PCF for PowerFX Logic Authoring ( ./MonacoForPFX/ )
 - A Monaco Editor PCF for JSON for Context Definition ( ./MonacoForJSON/ )
 - A Plugin Package for the Evaluation assembly ( ./pfxPlugin/ )
-- A PCF control for pre-populating the Context JSON based on user selection of target table ( TBD )
+- A PCF control for pre-populating the Context JSON based on user selection of target table ( ./contextBuilder/ )
 - A PCF control for registering new steps on the plugin assembly ( TBD )
 
 ## POC Design
