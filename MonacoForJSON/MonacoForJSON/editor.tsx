@@ -31,7 +31,7 @@ export const Editor: React.FC<IEditorProps> = (props: IEditorProps) => {
 		if (editorDiv.current) {
 			editor = monaco.editor.create(editorDiv.current, {
 				value: props.defaultValue,
-				language: 'JSON',
+				language: 'json',
 			});
             editor.onDidChangeModelContent(_ => {
                 props.callback(editor.getValue());

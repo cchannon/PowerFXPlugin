@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest>
+  <control namespace="ktcs" constructor="monacoForJSON" version="0.0.1" display-name-key="monacoForJSON" description-key="monacoForJSON description" control-type="virtual" >
+    <external-service-usage enabled="false">
+    </external-service-usage>
+    <type-group name="strings">
+      <type>SingleLine.Text</type>
+      <type>SingleLine.TextArea</type>
+      <type>Multiple</type>
+    </type-group>
+    <property name="stringJSON" display-name-key="JSON Body" description-key="The text representing the body of JSON" of-type-group="strings" usage="bound" required="true" />
+    <resources>
+      <code path="index.ts" order="1"/>
+      <css path="editor.css" order="1"/>
+      <platform-library name="React" version="16.8.6" />
+      <platform-library name="Fluent" version="8.29.0" />
+    </resources>
+  </control>
+</manifest>

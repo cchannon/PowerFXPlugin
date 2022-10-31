@@ -5,7 +5,7 @@ This repo seeks to demonstrate a viable use of PowerFX as a low-code tool for au
 ## Contents
 
 This repo introduces 5 main elements for addressing this challenge:
-- PowerFX Editor PCF for PowerFX Logic Authoring ( ./pfxPcf/ )
+- PowerFX Editor PCF for PowerFX Logic Authoring ( ./MonacoForPFX/ )
 - A Monaco Editor PCF for JSON for Context Definition ( ./MonacoForJSON/ )
 - A Plugin Package for the Evaluation assembly ( ./pfxPlugin/ )
 - A PCF control for pre-populating the Context JSON based on user selection of target table ( TBD )
