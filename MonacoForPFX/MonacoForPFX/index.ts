@@ -2,7 +2,7 @@ import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import { Editor, IEditorProps } from "./editor";
 import * as React from "react";
 
-export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, IOutputs> {
+export class monacoForPFX implements ComponentFramework.ReactControl<IInputs, IOutputs> {
     private notifyOutputChanged: () => void;
     private currentValue: string;
 
@@ -17,7 +17,7 @@ export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, I
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        const defaultString = context.parameters.stringJSON.raw ? context.parameters.stringJSON.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
+        const defaultString = context.parameters.stringPFX.raw ? context.parameters.stringPFX.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
         const props: IEditorProps = { 
             callback: this.callback.bind(this),
             defaultValue: defaultString
@@ -33,7 +33,7 @@ export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, I
     }
 
     public getOutputs(): IOutputs {
-        return { stringJSON: this.currentValue };
+        return { stringPFX: this.currentValue };
     }
 
     public destroy(): void {

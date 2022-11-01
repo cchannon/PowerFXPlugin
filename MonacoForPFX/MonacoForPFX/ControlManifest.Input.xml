@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="ktcs" constructor="monacoForJSON" version="0.0.1" display-name-key="monacoForJSON" description-key="monacoForJSON description" control-type="virtual" >
+  <control namespace="ktcs" constructor="monacoForPFX" version="0.0.1" display-name-key="Monaco For PFX" description-key="A basic monaco code editor for PowerFX" control-type="virtual" >
     <external-service-usage enabled="false">
     </external-service-usage>
     <type-group name="strings">
@@ -8,7 +8,7 @@
       <type>SingleLine.TextArea</type>
       <type>Multiple</type>
     </type-group>
-    <property name="stringJSON" display-name-key="JSON Body" description-key="The text representing the body of JSON" of-type-group="strings" usage="bound" required="true" />
+    <property name="stringPFX" display-name-key="PFX Body" description-key="The text representing the body of PFX" of-type-group="strings" usage="bound" required="true" />
     <resources>
       <code path="index.ts" order="1"/>
       <css path="editor.css" order="1"/>
