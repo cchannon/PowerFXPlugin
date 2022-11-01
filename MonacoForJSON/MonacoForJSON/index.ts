@@ -5,6 +5,8 @@ import * as React from "react";
 export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, IOutputs> {
     private notifyOutputChanged: () => void;
     private currentValue: string;
+    private isLoaded: boolean = false;
+    private defaultString: string = "";
 
     constructor() { }
 
@@ -17,10 +19,11 @@ export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, I
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        const defaultString = context.parameters.stringJSON.raw ? context.parameters.stringJSON.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
-        const props: IEditorProps = { 
+        if(!this.isLoaded)
+            this.defaultString = context.parameters.stringJSON.raw ? context.parameters.stringJSON.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
+        let props: IEditorProps = { 
             callback: this.callback.bind(this),
-            defaultValue: defaultString
+            defaultValue: this.defaultString
         };
         return React.createElement(
             Editor, props
