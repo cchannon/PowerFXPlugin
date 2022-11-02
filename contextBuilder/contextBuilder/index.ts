@@ -1,12 +1,13 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
-import { IPickerProps, IListItem, picker } from "./TablePicker";
+import { IPickerProps, picker } from "./TablePicker";
 import * as React from "react";
-import { json } from "stream/consumers";
+import {ContextObj, ComplexValue} from "./models";
 
 export class contextBuilder implements ComponentFramework.ReactControl<IInputs, IOutputs> {
     private _notifyOutputChanged: () => void;
     public _context: ComponentFramework.Context<IInputs>;
     private _newValue: string | undefined;
+    
     constructor() { }
 
     public init(
@@ -22,7 +23,7 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        let props: IPickerProps = { callback: this.callback.bind(this), context}
+        let props: IPickerProps = { callback: this.callback.bind(this), context: context}
         return React.createElement(
             picker, props
         );
@@ -37,13 +38,6 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
         let attribs: string[] = [];
         if(entity.entities.length === 0){
             //pop error
-            let popService = this._context.factory.getPopupService();
-            let popOptions: ComponentFramework.FactoryApi.Popup.Popup = {
-                name:"",
-                type: ComponentFramework.FactoryApi.Popup.Types.PopupType,
-                
-            }
-            popService.createPopup()
             return;
         }
         Object.entries(entity.entities[0]).forEach(([key, _]) => attribs.push(key));
@@ -53,32 +47,43 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
         //down to just valid columns for a metadata retrieve
         attribs = attribs.filter(x => !x.match("@")).map(x => x.match("^_") ? x.substring(1,x.length-6) : x);
 
-        this._context.utils.getEntityMetadata(schemaname, attribs).then(this.metadataCallback.bind(this), this.errorCallback.bind(this));
+        this._context.utils.getEntityMetadata(schemaname, attribs).then((success) => this.metadataCallback(success, schemaname), this.errorCallback.bind(this));
         console.log(entity);
     }
 
-    private metadataCallback(success: ComponentFramework.PropertyHelper.EntityMetadata){
+    private metadataCallback(success: ComponentFramework.PropertyHelper.EntityMetadata, schemaname: string){
         let attribs: string[] = success._attributes
-        let jsonString = "{"
+        
+        let objAttribs: Object[] = [];
+
         attribs.forEach(attrib => {
-            jsonString +=`\n\t\"${attrib}\": `
             let type = success.Attributes.get(attrib).AttributeTypeName;
             switch(type){
                 case 'status':
                 case 'state':
                 case 'picklist':
-                    jsonString +="{\n\t\t\"value\": 12345,\n\t\t\"label\": \"optionsetlabel\"\n\t},";
+                    objAttribs.push({ [attrib] : { label: "optionsetlabel", value: 123245 } as ComplexValue});
                     break;
                 case 'lookup':
-                    jsonString +="{\n\t\t\"value\": \"{A GUID}\",\n\t\t\"label\": \"PrimaryColumnName\"\n\t},";
+                    objAttribs.push({ [attrib]: { label: "PrimaryColumnString", value: "{A GUID}" } as ComplexValue});
+                    break;
+                case 'integer':
+                case 'bigint':
+                case 'decimal':
+                    objAttribs.push({ [attrib]: 12345});
                     break;
                 default:
-                    jsonString +=" \"StringValue\",";
+                    objAttribs.push({ [attrib]: "StringValue"});
                     break;
             }
         });
-        jsonString += "}";
-        this._newValue = jsonString;
+
+        let jsonObj: ContextObj = {
+            tableName: schemaname,
+            attributes: objAttribs
+        }
+        
+        this._newValue = JSON.stringify(jsonObj, undefined, 5);
         this._notifyOutputChanged();
     }
 
