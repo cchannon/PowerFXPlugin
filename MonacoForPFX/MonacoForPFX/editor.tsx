@@ -164,6 +164,7 @@ monaco.languages.setLanguageConfiguration('PowerFX', {
 
 export const Editor: React.FC<IEditorProps> = (props: IEditorProps) => {
 	const editorDiv = React.useRef<HTMLDivElement>(null);
+	editorDiv.current?.style.setProperty("maxHeight", "400px");
 	let editor: monaco.editor.IStandaloneCodeEditor;
 	React.useEffect(() => {
 		if (editorDiv.current) {
@@ -178,6 +179,6 @@ export const Editor: React.FC<IEditorProps> = (props: IEditorProps) => {
 		return () => {
 			editor.dispose();
 		};
-	}, []);
+	});
 	return <div className="Editor" ref={editorDiv}></div>;
 };

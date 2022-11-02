@@ -17,7 +17,7 @@ export class monacoForPFX implements ComponentFramework.ReactControl<IInputs, IO
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        const defaultString = context.parameters.stringPFX.raw ? context.parameters.stringPFX.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
+        const defaultString = context.parameters.stringPFX.raw ? context.parameters.stringPFX.raw : "1+1"
         const props: IEditorProps = { 
             callback: this.callback.bind(this),
             defaultValue: defaultString
