@@ -9,6 +9,7 @@
       <type>Multiple</type>
     </type-group>
     <property name="context" display-name-key="context" description-key="the Context text box on the form" of-type-group="strings" usage="bound" required="true" />
+    <property name="registered" display-name-key="registered" description-key="a boolean attribute on the form indicating whether the plugin has already been registered" of-type="TwoOptions" usage="bound" required="true" />
     <resources>
       <code path="index.ts" order="1"/>
       <platform-library name="React" version="16.8.6" />

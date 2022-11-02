@@ -1,7 +1,8 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
-import { IRegistrationProps, pluginMode, pluginStage, RegisterForm } from "./RegisterForm";
+import { IRegistrationProps, RegisterForm } from "./RegisterForm";
 import * as React from "react";
 import { ContextObj, ComplexValue } from "./models";
+import { runInThisContext } from "vm";
 
 export class registerPlugin implements ComponentFramework.ReactControl<IInputs, IOutputs> {
     private theComponent: ComponentFramework.ReactControl<IInputs, IOutputs>;
@@ -40,6 +41,7 @@ export class registerPlugin implements ComponentFramework.ReactControl<IInputs, 
         }
         const props: IRegistrationProps = { 
             jsonObj: jsonObj,
+            registered: context.parameters.registered.raw,
             callback: this.callback.bind(this)
         };
         return React.createElement(
@@ -47,7 +49,7 @@ export class registerPlugin implements ComponentFramework.ReactControl<IInputs, 
         );
     }
 
-    public callback (filteringAttributes: string[], stage: pluginStage, mode: pluginMode){
+    public callback (filteringAttributes: string[], stage: string, mode: string){
 
     }
     /**
