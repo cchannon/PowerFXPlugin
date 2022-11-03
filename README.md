@@ -33,16 +33,16 @@ The context builder allows the user to browse all tables in the current datavers
 
 ## Monaco for JSON
 
-*This control should be merged with the Monaco for PFX control (so there is just one Monaco control that accept the lang as a parameter), but they are currently being left separate while working out bugs from the PFX Monarch definition*
+🔜 *This control should be merged with the Monaco for PFX control (so there is just one Monaco control that accepts the lang as a parameter), but they are currently being left separate while I'm working out bugs from the PFX Monarch definition (still haven't figured out the variable highlighting, if there are any eager contributors out there!)* 🔜
 
 The JSON monaco editor is used to present the JSON Context Object that is generated automatically by the contextBuilder. This generated JSON acts as a map for the PowerFX author, showing what table attributes can be accessed and "dot walked." For example, in the image below, this JSON tells the PowerFX writer that a valid variable is ```statecode```, and that the label value of that optionset can be accessed as ```statecode.label```
 
 ![JSON Monaco Editor](./img/json.png "Monaco editor for JSON")
 
-Eventually, it is intended that this control will also enable users to insert their own JSON objects to create constants, set references to other values, etc.
+Eventually, it is intended that this control will enable users to insert their own JSON objects on top of the auto-generated context to create constants, set references to other values, etc. but for the initial releases custom editing will probably not work very well 🤷.
 
 ## Monaco for PFX
 
-This Monaco editor gives the user basic syntax coloring, but none of the server-side validation of the PowerFX code editor examples. Those features are excellent, but in a PowerApps context the requirement for running an ASP.net site dramatically complicates deployment *(i.e. yes, I could have built this control based on the [PowerFX Samples](https://github.com/microsoft/power-fx-host-samples) but I would have lost a lot of folks who are PowerApps Only and don't speak Azure or custom web)*
+This Monaco editor gives the user basic syntax coloring, but none of the server-side validation or autocompletion of the PowerFX code editor examples. Those features are excellent, but in a PowerApps context the requirement for running an ASP.net site dramatically complicates deployment *(yes,* __🙏@MikeStall🙏__ *I could have built this control based on the [PowerFX Samples](https://github.com/microsoft/power-fx-host-samples) but I would have lost a lot of folks who are PowerApps Only and don't speak Azure or custom web - even as it is all these PCFs are probably too much for folks that don't have pro dev support)* 🤯
 
 ![Power FX Monaco Code Editor](img/pfx.png "PowerFX Monaco Code Editor")
