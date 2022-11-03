@@ -1,70 +1,91 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import { IRegistrationProps, RegisterForm } from "./RegisterForm";
 import * as React from "react";
-import { ContextObj, ComplexValue } from "./models";
-import { runInThisContext } from "vm";
+import { ContextObj } from "./models";
 
 export class registerPlugin implements ComponentFramework.ReactControl<IInputs, IOutputs> {
-    private theComponent: ComponentFramework.ReactControl<IInputs, IOutputs>;
-    private notifyOutputChanged: () => void;
-    private jsonObj: ContextObj
+    private _notifyOutputChanged: () => void;
+    private _jsonObj: ContextObj
+    private _context: ComponentFramework.Context<IInputs>;
+    private _stage: string;
+    private _mode: string;
+    private _filteringAttributes: string[];
+    private _sdkMessageId: string;
+    private _sdkMessageFilterId: string;
+    private _pluginTypeId: string;
 
-    /**
-     * Empty constructor.
-     */
     constructor() { }
 
-    /**
-     * Used to initialize the control instance. Controls can kick off remote server calls and other initialization actions here.
-     * Data-set values are not initialized here, use updateView.
-     * @param context The entire property bag available to control via Context Object; It contains values as set up by the customizer mapped to property names defined in the manifest, as well as utility functions.
-     * @param notifyOutputChanged A callback method to alert the framework that the control has new outputs ready to be retrieved asynchronously.
-     * @param state A piece of data that persists in one session for a single user. Can be set at any point in a controls life cycle by calling 'setControlState' in the Mode interface.
-     */
     public init(
         context: ComponentFramework.Context<IInputs>,
         notifyOutputChanged: () => void,
         state: ComponentFramework.Dictionary
     ): void {
-        this.notifyOutputChanged = notifyOutputChanged;
+        this._notifyOutputChanged = notifyOutputChanged;
+        this._context = context;
     }
 
-    /**
-     * Called when any value in the property bag has changed. This includes field values, data-sets, global values such as container height and width, offline status, control metadata values such as label, visible, etc.
-     * @param context The entire property bag available to control via Context Object; It contains values as set up by the customizer mapped to names defined in the manifest, as well as utility functions
-     * @returns ReactElement root react element for the control
-     */
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        let jsonObj: ContextObj | null = null;
         if(context.parameters.context.raw){
-            jsonObj = JSON.parse(context.parameters.context.raw!)
+            this._jsonObj = JSON.parse(context.parameters.context.raw!)
         }
         const props: IRegistrationProps = { 
-            jsonObj: jsonObj,
+            jsonObj: this._jsonObj,
             registered: context.parameters.registered.raw,
             callback: this.callback.bind(this)
         };
         return React.createElement(
             RegisterForm, props
         );
+        
     }
 
-    public callback (filteringAttributes: string[], stage: string, mode: string){
-
+    public callback (filteringAttributes: string[], stage: string, mode: string, sdkMessage:string){
+        this._stage = stage;
+        this._mode = mode;
+        this._filteringAttributes = filteringAttributes;
+        let options = `?$select=sdkmessageid&$expand=sdkmessageid_sdkmessagefilter($select=sdkmessagefilterid;$filter=(primaryobjecttypecode eq ${this._jsonObj.tableName}))&$filter=(name eq '${sdkMessage}')`;
+        this._context.webAPI.retrieveMultipleRecords("sdkmessage", options).then(this.sdkMessageCallback.bind(this), this.errorCallback)
     }
-    /**
-     * It is called by the framework prior to a control receiving new data.
-     * @returns an object based on nomenclature defined in manifest, expecting object[s] for property marked as “bound” or “output”
-     */
+
+    private errorCallback(error:any) {
+        console.log(error);
+    }
+
+    private sdkMessageCallback(success: ComponentFramework.WebApi.RetrieveMultipleResponse) {
+        this._sdkMessageId = success.entities[0]["sdkmessageid"];
+        this._sdkMessageFilterId = success.entities[0]["sdkmessagefilterid"]?success.entities[0]["sdkmessagefilterid"]: null;
+        let options = `?$select=plugintypeid&$filter=(name eq '${this._context.parameters.plugin.raw}')`;
+        this._context.webAPI.retrieveMultipleRecords("plugintype", options).then(this.pluginTypeCallback.bind(this), this.errorCallback);
+    }
+
+    private pluginTypeCallback(success: ComponentFramework.WebApi.RetrieveMultipleResponse){
+        this._pluginTypeId = success.entities[0]["plugintypeid"];
+        let pluginStep : ComponentFramework.WebApi.Entity = {
+            filteringattributes : this._filteringAttributes.join(','),
+            mode: this._mode === "Asynchronous" ? 1 : 0,
+            stage: this._stage === "Pre-validation" ? 10 : this._stage === "Pre-operation" ? 20 : 40,
+            supporteddeployment: 0,
+            invocationsource: 1,
+            description: "PowerFX Plugin",
+            name: "PowerFX Plugin",
+            rank: 10,
+            plguintypeid: this._pluginTypeId,
+            sdkmessageid: this._sdkMessageId,
+            sdkmessagefilterid: this._sdkMessageFilterId
+        }
+        
+        this._context.webAPI.createRecord("sdkmessageprocessingstep", pluginStep).then(this.registerCallback.bind(this), this.errorCallback);
+    }
+
+    private registerCallback(success: ComponentFramework.LookupValue){
+        console.log(success);
+    }
+    
     public getOutputs(): IOutputs {
         return { };
     }
 
-    /**
-     * Called when the control is to be removed from the DOM tree. Controls should use this call for cleanup.
-     * i.e. cancelling any pending remote calls, removing listeners, etc.
-     */
     public destroy(): void {
-        // Add code to cleanup control if necessary
     }
 }

@@ -1,11 +1,11 @@
-import { ChoiceGroup, IBasePickerSuggestionsProps, IChoiceGroupOption, IStackTokens, ITag, PrimaryButton, Stack, StackItem, TagPicker } from "@fluentui/react";
+import { ChoiceGroup, IBasePickerSuggestionsProps, IChoiceGroupOption, IStackTokens, ITag, PrimaryButton, Stack, StackItem, TagPicker, Text } from "@fluentui/react";
 import * as React from "react";
 import { ContextObj } from "./models";
 
 export interface IRegistrationProps {
     jsonObj: ContextObj | null,
     registered: boolean,
-    callback: (filteringAttributes: string[], stage: string, mode: string) => void
+    callback: (filteringAttributes: string[], stage: string, mode: string, sdkMessage: string) => void
 }
 
 const stackTokens: IStackTokens = {
@@ -24,13 +24,18 @@ const modeChoices: IChoiceGroupOption[] = [
     {key: "Synchronous", text: "Synchronous"},
     {key: "Asynchronous", text: "Asynchronous"}
 ]
+const sdkMessageChoices: IChoiceGroupOption[] = [
+    {key: "Create", text: "Create"},
+    {key: "Delete", text: "Delete"},
+    {key: "Update", text: "Update"}
+]
 
+let selectedSdkMessage: string;
 let selectedStage: string;
 let selectedMode: string;
 let selectedAttribs: string[];
   
 export const RegisterForm: React.FC<IRegistrationProps> = (props: IRegistrationProps) => {
-    const[registered, setRegistered] = React.useState(true);
     const allTags: ITag[] = Object.entries(props.jsonObj!.attributes).map(item => ({ key: item[0], name: item[0] }));
     const listContainsTagList = (tag: ITag, tagList?: ITag[]) => {
         if (!tagList || !tagList.length || tagList.length === 0) {
@@ -42,23 +47,46 @@ export const RegisterForm: React.FC<IRegistrationProps> = (props: IRegistrationP
         return filter ? allTags.filter(tag => tag.name.toLowerCase().match(filter.toLowerCase()) && !listContainsTagList(tag, selectedItems),) : [];
     };
 
+    if(!props.jsonObj){
+        return(
+            <Text variant="xLarge">
+                No Table has been selected yet for context. Please pick a table above.
+            </Text>
+        )
+    }
+
     return(
         <Stack tokens={stackTokens}>
             {/* header */}
-
+            <StackItem>
+                <Text variant="xLarge" >
+                    Register PowerFX for Plugin Execution
+                </Text>
+            </StackItem>
             {/* filtering attribs */}
+            {/* sdkMessage */}
+            <ChoiceGroup 
+                options={sdkMessageChoices} 
+                disabled={props.registered}
+                defaultChecked={true}
+                onChange={(_, option) => { selectedSdkMessage = option!.text}} 
+                label="Select the SDK Message on which to execute" 
+                required={true} 
+            />
+            {/* picker isn't ideal. Should maybe have checkboxes instead? */}
             <TagPicker
                 removeButtonAriaLabel="Remove attribute"
                 selectionAriaLabel="Selected filtering attributes"
                 onResolveSuggestions={filterSuggestedTags}
                 getTextFromItem={(item: ITag) => item.name}
                 pickerSuggestionsProps={pickerSuggestionsProps}
-                disabled={registered}
+                disabled={props.registered}
             />
             {/* stage */}
             <ChoiceGroup 
                 options={stageChoices} 
-                disabled={registered}
+                disabled={props.registered}
+                defaultChecked={true}
                 onChange={(_, option) => { selectedStage = option!.text}} 
                 label="Select the plugin execution stage" 
                 required={true} 
@@ -66,7 +94,8 @@ export const RegisterForm: React.FC<IRegistrationProps> = (props: IRegistrationP
             {/* mode */}
             <ChoiceGroup 
                 options={modeChoices} 
-                disabled={registered}
+                disabled={props.registered}
+                defaultChecked={true}
                 onChange={(_, option) => { selectedMode = option!.text}} 
                 label="Select the plugin execution mode" 
                 required={true} 
@@ -75,16 +104,11 @@ export const RegisterForm: React.FC<IRegistrationProps> = (props: IRegistrationP
             <StackItem>
                 <PrimaryButton
                     text="Register Plugin"
-                    onClick={() => registerPlugin()}
+                    onClick={() => props.callback(selectedAttribs, selectedStage, selectedMode, selectedSdkMessage)}
                     allowDisabledFocus
-                    disabled={selectedAttribs.length===0 || registered}
+                    disabled={selectedAttribs.length===0 || props.registered}
                 />
             </StackItem>
         </Stack>
     )
-}
-
-function registerPlugin(): void {
-    // Check to see if already registered
-    // True: set Registered: True, callback Registered
 }
