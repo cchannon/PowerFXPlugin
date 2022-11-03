@@ -30,7 +30,7 @@ const gridStyles: Partial<IDetailsListStyles> = {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'start',
-            height: '60vh',
+            height: '45vh',
             width:'25vw'
             },
         },

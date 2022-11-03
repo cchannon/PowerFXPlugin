@@ -19,8 +19,11 @@ export class monacoForJSON implements ComponentFramework.ReactControl<IInputs, I
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        if(!this.isLoaded)
+        //we only want to push the colstring to the editor on first load, otherwise it loops and causes editor to continually lose focus
+        if(!this.isLoaded){
             this.defaultString = context.parameters.stringJSON.raw ? context.parameters.stringJSON.raw : "{\n\t //Add custom objects to this JSON to create context parameters \n}"
+            this.isLoaded=true;
+        }
         let props: IEditorProps = { 
             callback: this.callback.bind(this),
             defaultValue: this.defaultString
