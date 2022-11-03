@@ -1,10 +1,9 @@
 import * as React from "react";
-import { Stack, IStackTokens, StackItem, IStackItemStyles, IStackStyles, IStackItemTokens, Callout } from "@fluentui/react";
+import { Stack, IStackTokens, StackItem } from "@fluentui/react";
 import { SearchBox } from '@fluentui/react/lib/SearchBox';
 import { DetailsList, DetailsListLayoutMode, SelectionMode, Selection, IDetailsListStyles, ConstrainMode } from '@fluentui/react/lib/DetailsList';
 import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
 import { IInputs } from "./generated/ManifestTypes";
-import { NOTFOUND } from "dns";
 
 export interface IPickerProps{
     callback: (schemaName: string) => void,
@@ -46,8 +45,6 @@ const gridStyles: Partial<IDetailsListStyles> = {
     },
 };
 
-let calloutVisible = false;
-
 export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
     const [options, setOptions] = React.useState(allOptions);
 
@@ -66,7 +63,6 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
 
     const [currentSelection, setCurrentSelection] = React.useState('');
     const [hasSelection, setHasSelection] = React.useState(false);
-    const [notFound, setNotFound] = React.useState(false);
     
     const stackTokens : IStackTokens = {
         maxWidth:"25vw",
@@ -124,6 +120,8 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
                     />
                 </StackItem>
                 <StackItem>
+                    {/* This doesn't actually do anything - I just figure at some point this control 
+                    should be a modal or side panel or something so it will need a dismiss button */}
                     <DefaultButton text="Cancel" />
                 </StackItem>
             </Stack>

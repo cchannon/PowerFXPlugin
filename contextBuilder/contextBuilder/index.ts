@@ -52,8 +52,8 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
     }
 
     private metadataCallback(success: ComponentFramework.PropertyHelper.EntityMetadata, schemaname: string){
+        //successful metadata request: start building JSON object
         let attribs: string[] = success._attributes
-        
         let objAttribs: Object[] = [];
 
         attribs.forEach(attrib => {
