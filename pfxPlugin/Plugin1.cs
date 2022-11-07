@@ -5,6 +5,8 @@ using Microsoft.PowerFx.Types;
 using Microsoft.PowerFx.Core;
 using System.Linq;
 using Microsoft.Xrm.Sdk.Query;
+using System.Text.RegularExpressions;
+using System.Collections.Generic;
 
 namespace pfxPlugin
 {
@@ -12,6 +14,8 @@ namespace pfxPlugin
     {
         private string pfxRecordId = null;
         private ILocalPluginContext _pluginContext;
+        private IOrganizationService orgService;
+        private string entityName;
         public Plugin1(string unsecureConfiguration, string secureConfiguration)
             : base(typeof(Plugin1))
         {
@@ -29,23 +33,82 @@ namespace pfxPlugin
             }
             _pluginContext = localPluginContext;
 
-            if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
-                _pluginContext.Trace("have Target");
-                var pfxstring = entity.GetAttributeValue<string>("pl_pfxstring");
-                _pluginContext.Trace($"pl_pfxstring: {pfxstring}");
-                string global = "{\"A\":\"ABC\",\"B\":{\"Inner\":123}}";
-                //_pluginContext.Trace(global);
-                var parameters = (RecordValue)FormulaValue.FromJson(global);
-                _pluginContext.Trace(parameters.ToString());
-                var config = new PowerFxConfig();
-                var engine = new RecalcEngine(config);
-                
-                var result = engine.Eval(pfxstring, parameters);
+            IOrganizationService orgService = _pluginContext.InitiatingUserService;
+            var query = new QueryExpression("pl_pfxtext");
+            query.ColumnSet.AddColumn("pl_pfxstring");
+            query.ColumnSet.AddColumn("pl_pfxcontext");
+            query.Criteria.AddCondition(new ConditionExpression("pl_pfxtest", ConditionOperator.Equal, pfxRecordId));
+            var results = orgService.RetrieveMultiple(query).Entities;
+            if(results != null && results.Count>0){
+                _pluginContext.Trace("have pfx");
+                if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
+                    _pluginContext.Trace("have Target");
+                    entityName = entity.LogicalName;
+                    var pfxstring = results[0].GetAttributeValue<string>("pl_pfxstring");
+                    _pluginContext.Trace($"PFX: {pfxstring}");
+                    string global = results[0].GetAttributeValue<string>("pl_pfxcontext");
+                    _pluginContext.Trace($"Context: {global}");
+                    var parameters = (RecordValue)FormulaValue.FromJson(global);
+                    _pluginContext.Trace(parameters.ToString());
 
-                localPluginContext.Trace(PrintResult(result));                
+                    var config = new PowerFxConfig();
+                    config.EnableSetFunction();
+                    var engine = new RecalcEngine(config);
+                    string[] lines = pfxstring.Split(';');
+
+                    foreach (var line in lines){
+                        // variable assignment: Set( <ident>, <expr> )
+                        MatchCollection allMatches = Regex.Matches(line, @"\s*Set\(\s*?(?<ident>\w+?)\s*?,\s*?(?<expr>.*?)\)", RegexOptions.Singleline);
+                        if(allMatches.Count>0)
+                        {
+                            foreach(Match thisMatch in allMatches)
+                            {
+                                try
+                                {
+                                    var val = engine.GetValue(thisMatch.Groups["ident"].Value);
+                                }
+                                catch
+                                {
+                                    var r = engine.Eval(thisMatch.Groups["expr"].Value);
+                                    engine.UpdateVariable(thisMatch.Groups["ident"].Value, FormulaValue.NewBlank(r.Type));
+                                }
+                            }
+                        }
+                        // eval and print
+                        var result = engine.Eval(line);
+
+                        if (result is ErrorValue errorValue)
+                            throw new Exception("Error: " + errorValue.Errors[0].Message);
+                        else
+                        {
+                            localPluginContext.Trace(PrintResult(result));
+                            
+                            
+                            //Do Stuff to eval and update:
+
+
+                        }
+                    }
+                }
             }
         }
 
+        Entity contextComparison(Dictionary<string, FormulaValue> Pre, Dictionary<string, FormulaValue> Post) {
+            Entity entity = new Entity(entityName);
+            foreach(var column in Pre){
+                if(Pre[column.Key].Type != Post[column.Key].Type){
+                    throw new InvalidCastException($"Type casting for dataverse columns is not allowed. Attempted to set {Pre[column.Key]} with type {Pre[column.Key].Type} as {Post[column.Key].Type}");
+                }
+                if(Pre[column.Key] != Post[column.Key]){
+                    entity[column.Key] = Post[column.Key];
+                }
+            }
+            return entity;
+        }
+
+        void updateColumn(string column, Microsoft.PowerFx.Types.FormulaValue value){
+
+        }
         string PrintResult(object value, Boolean minimal = false)
         {
             _pluginContext.Trace("Entered PrintResult");
