@@ -5,24 +5,24 @@ This repo seeks to demonstrate a viable use of PowerFX as a low-code tool for au
 ## Contents
 
 This repo introduces 5 main elements for addressing this challenge:
-- PowerFX Editor PCF for PowerFX Logic Authoring ( ./MonacoForPFX/ )
-- A Monaco Editor PCF for JSON for Context Definition ( ./MonacoForJSON/ )
-- A Plugin Package for the Evaluation assembly ( ./pfxPlugin/ )
-- A PCF control for pre-populating the Context JSON based on user selection of target table ( ./contextBuilder/ )
-- A PCF control for registering new steps on the plugin assembly ( ./registerPlugin/ )
+- PCF control for pre-populating the Context JSON based on user selection of target table ( ./contextBuilder/ )
+- Monaco Editor PCF for PowerFX Logic Authoring ( ./MonacoForPFX/ )
+- Monaco Editor PCF for JSON for Context Definition ( ./MonacoForJSON/ )
+- Plugin Package for the Evaluation assembly ( ./pfxPlugin/ )
+- PCF control for registering new steps on the plugin assembly ( ./registerPlugin/ )
 
 ## POC Design
 
 The initial Proof of Concept will consist of a plugin package and four PCFs registered on a single form on a custom table. The table will store the PowerFX definitions for each custom rule to be implemented (event, context, code) and each row will (once published) correspond 1:1 with a registered plugin step.
 
-when form type is Create the pre-populating PCF will enable a user to pick a target table and one "sample" row from that table to prepopulate the Context JSON. The Context JSON will then pull the table definition and build objects containing values for each column on the table.
+The pre-populating PCF will enable a user to pick a target table and auto-generate Context JSON. The Context JSON will represent the table definition, with objects containing values for each column on the table.
 
 Once populated, the Context JSON will be editable in the Monaco Editor PCF so that additional const params and sample values can be added, if appropriate.
 
-The pfxPcf control will then allow the user to add PCF logic, and the Plugin Package will evaluate that logic and take action. Initially, the only actions supported by the Plugin Package will be:
+The Monaco PFX control will then allow the user to add PFX logic, and the Plugin Package will evaluate that logic and take action. Initially, the only actions supported by the Plugin Package will be:
 
 - To add to a plugin trace any direct output value from the PFX
-- To check the Context for any altered values (i.e. any context values that were edited with a Set() ) and issue commensurate changes to the table
+- To check the Context for any altered values (i.e. any context parameters that were edited with a Set() ) and issue commensurate changes to the table
 
 The register plugin PCF will allow the user to "publish" the pfx definition to a step.
 
@@ -43,6 +43,6 @@ Eventually, it is intended that this control will enable users to insert their o
 
 ## Monaco for PFX
 
-This Monaco editor gives the user basic syntax coloring, but none of the server-side validation or autocompletion of the PowerFX code editor examples. Those features are excellent, but in a PowerApps context the requirement for running an ASP.net site dramatically complicates deployment *(yes,* __🙏@MikeStall🙏__ *I could have built this control based on the [PowerFX Samples](https://github.com/microsoft/power-fx-host-samples) but I would have lost a lot of folks who are PowerApps Only and don't speak Azure or custom web - even as it is all these PCFs are probably too much for folks that don't have pro dev support)* 🤯
+This Monaco editor gives the user basic syntax coloring, but none of the server-side validation or autocompletion of the PowerFX code editor examples. Those features are excellent, but in a PowerApps context the requirement for running an ASP.net site dramatically complicates deployment *(yes,* __🙏@MikeStall🙏__ *I could have built this control based on the [PowerFX Samples](https://github.com/microsoft/power-fx-host-samples) but I would have lost a lot of folks who are PowerApps Only and don't speak Azure or custom web - even as it is all these PCFs are probably too much for folks that don't have pro dev support)* 🤯 The server-side piece of the sample code is pretty straightforward - maybe in a future project I'll try to implement that as a Custom API to keep it "dataverse friendly."
 
 ![Power FX Monaco Code Editor](img/pfx.png "PowerFX Monaco Code Editor")
