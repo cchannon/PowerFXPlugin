@@ -179,6 +179,6 @@ export const Editor: React.FC<IEditorProps> = (props: IEditorProps) => {
 		return () => {
 			editor.dispose();
 		};
-	});
+	}, [props.defaultValue]);
 	return <div className="Editor" ref={editorDiv}></div>;
 };

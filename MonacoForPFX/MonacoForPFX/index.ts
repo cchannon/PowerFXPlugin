@@ -20,7 +20,7 @@ export class monacoForPFX implements ComponentFramework.ReactControl<IInputs, IO
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
         if(!this._isLoaded){
-             this._defaultString = context.parameters.stringPFX.raw ? context.parameters.stringPFX.raw : "1+1"
+            this._defaultString = context.parameters.stringPFX.raw ? context.parameters.stringPFX.raw : "1+1"
             this._isLoaded = true;
         }
         const props: IEditorProps = { 
