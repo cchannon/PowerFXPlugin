@@ -54,7 +54,7 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
     private metadataCallback(success: ComponentFramework.PropertyHelper.EntityMetadata, schemaname: string){
         //successful metadata request: start building JSON object
         let attribs: string[] = success._attributes
-        let objAttribs: Object[] = [];
+        let obj: {[name: string]: {}} = {};
 
         attribs.forEach(attrib => {
             let type = success.Attributes.get(attrib).AttributeTypeName;
@@ -62,29 +62,28 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
                 case 'status':
                 case 'state':
                 case 'picklist':
-                    objAttribs.push({ [attrib] : { label: "optionsetlabel", value: 123245 } as ComplexValue});
+                    obj[attrib] = { label: "optionsetlabel", value: 123245 };
                     break;
                 case 'lookup':
-                    objAttribs.push({ [attrib]: { label: "PrimaryColumnString", value: "{A GUID}" } as ComplexValue});
+                    obj[attrib] = { label: "PrimaryColumnString", value: "{A GUID}" };
                     break;
                 case 'integer':
                 case 'bigint':
                 case 'decimal':
-                    objAttribs.push({ [attrib]: 12345});
+                    obj[attrib] = 12345;
                     break;
                 default:
-                    objAttribs.push({ [attrib]: "StringValue"});
+                    obj[attrib] = "StringValue";
                     break;
             }
         });
-
-        let jsonObj: ContextObj = {
-            tableName: schemaname,
-            attributes: objAttribs
-        }
         
-        this._newValue = JSON.stringify(jsonObj, undefined, 5);
+        this._newValue = JSON.stringify(obj, undefined, 5);
         this._notifyOutputChanged();
+    }
+
+    private createAttrib<N extends string, V extends {}>(keyname: N, val: V) {
+        return { [keyname]: val } as Record<N,V>;
     }
 
     private errorCallback(error: any){
