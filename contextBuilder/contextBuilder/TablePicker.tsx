@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Stack, IStackTokens, StackItem } from "@fluentui/react";
+import { Stack, IStackTokens, StackItem, allowOverscrollOnElement } from "@fluentui/react";
 import { SearchBox } from '@fluentui/react/lib/SearchBox';
 import { DetailsList, DetailsListLayoutMode, SelectionMode, Selection, IDetailsListStyles, ConstrainMode } from '@fluentui/react/lib/DetailsList';
 import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
@@ -8,6 +8,7 @@ import { IInputs } from "./generated/ManifestTypes";
 export interface IPickerProps{
     callback: (schemaName: string) => void,
     context: ComponentFramework.Context<IInputs>,
+    prefilter: string | null
 }
 
 export interface IListItem{
@@ -17,6 +18,7 @@ export interface IListItem{
 }
 
 let allOptions: IListItem[] = [];
+
 const columns = [
     { key: 'column1', name: 'Set Name', fieldName: 'setName', minWidth: 100, maxWidth: 200, isResizable: true },
     { key: 'column2', name: 'Schema Name', fieldName: 'schemaName', minWidth: 100, maxWidth: 200, isResizable: true },
@@ -56,7 +58,10 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
                     allOptions.push({key: index, setName: x.originallocalizedcollectionname, schemaName: x.logicalname} as IListItem);
                     index++;
                 });
-                setOptions(allOptions);
+                if(!props.prefilter)
+                    setOptions(allOptions);
+                else
+                    setOptions(allOptions.filter(x => x.schemaName === props.prefilter));
             }
         );
     }
@@ -87,6 +92,7 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
     return (
         <Stack tokens={stackTokens}>
             <SearchBox 
+                defaultValue={props.prefilter ? props.prefilter : ""}
                 placeholder="search tables in this database" 
                 onChange={(_, newValue) => {
                     if(newValue){

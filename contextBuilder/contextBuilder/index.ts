@@ -1,13 +1,13 @@
 import { IInputs, IOutputs } from "./generated/ManifestTypes";
 import { IPickerProps, picker } from "./TablePicker";
 import * as React from "react";
-import {ContextObj, ComplexValue} from "./models";
 
 export class contextBuilder implements ComponentFramework.ReactControl<IInputs, IOutputs> {
     private _notifyOutputChanged: () => void;
     public _context: ComponentFramework.Context<IInputs>;
     private _newValue: string | undefined;
-    
+    private _tableName: string | null;
+
     constructor() { }
 
     public init(
@@ -17,13 +17,14 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
     ): void {
         this._notifyOutputChanged = notifyOutputChanged;
         this._context = context;
+        this._tableName = context.parameters.tableName.raw;
         if(this._context.parameters.context.raw){
             this._newValue = context.parameters.context.raw!;
         }
     }
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
-        let props: IPickerProps = { callback: this.callback.bind(this), context: context}
+        let props: IPickerProps = { callback: this.callback.bind(this), context: context, prefilter: context.parameters.tableName.raw }
         return React.createElement(
             picker, props
         );
@@ -79,6 +80,7 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
         });
         
         this._newValue = JSON.stringify(obj, undefined, 5);
+        this._tableName = schemaname;
         this._notifyOutputChanged();
     }
 
@@ -91,7 +93,7 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
     }
 
     public getOutputs(): IOutputs {
-        return { context: this._newValue };
+        return { context: this._newValue, tableName: this._tableName ?? undefined };
     }
 
     public destroy(): void {
