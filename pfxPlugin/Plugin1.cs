@@ -34,81 +34,68 @@ namespace pfxPlugin
             _pluginContext = localPluginContext;
 
             IOrganizationService orgService = _pluginContext.InitiatingUserService;
-            var query = new QueryExpression("pl_pfxtext");
-            query.ColumnSet.AddColumn("pl_pfxstring");
-            query.ColumnSet.AddColumn("pl_pfxcontext");
-            query.Criteria.AddCondition(new ConditionExpression("pl_pfxtest", ConditionOperator.Equal, pfxRecordId));
+            var query = new QueryExpression("ktcs_plugincommand");
+            query.ColumnSet.AddColumns(new string[]{ "ktcs_command", "ktcs_context", "ktcs_formulas", "ktcs_functions" });
+            query.Criteria.AddCondition(new ConditionExpression("ktcs_plugincommandid", ConditionOperator.Equal, pfxRecordId));
             var results = orgService.RetrieveMultiple(query).Entities;
             if(results != null && results.Count>0){
                 _pluginContext.Trace("have pfx");
                 if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
                     _pluginContext.Trace("have Target");
                     entityName = entity.LogicalName;
-                    var pfxstring = results[0].GetAttributeValue<string>("pl_pfxstring");
+                    var pfxstring = results[0].GetAttributeValue<string>("ktcs_command");
                     _pluginContext.Trace($"PFX: {pfxstring}");
-                    string global = results[0].GetAttributeValue<string>("pl_pfxcontext");
-                    _pluginContext.Trace($"Context: {global}");
+                    string global = results[0].GetAttributeValue<string>("ktcs_context");
+                    _pluginContext.Trace($"Have Context. Len: {global.Length}");
                     var parameters = (RecordValue)FormulaValue.FromJson(global);
-                    _pluginContext.Trace(parameters.ToString());
-
                     var config = new PowerFxConfig();
                     config.EnableSetFunction();
+                    ParserOptions opts = new ParserOptions { AllowsSideEffects = true };
+
                     var engine = new RecalcEngine(config);
                     string[] lines = pfxstring.Split(';');
-
+                    _pluginContext.Trace($"{lines.Count()} commands found.");
                     foreach (var line in lines){
-                        // variable assignment: Set( <ident>, <expr> )
-                        MatchCollection allMatches = Regex.Matches(line, @"\s*Set\(\s*?(?<ident>\w+?)\s*?,\s*?(?<expr>.*?)\)", RegexOptions.Singleline);
-                        if(allMatches.Count>0)
-                        {
-                            foreach(Match thisMatch in allMatches)
-                            {
-                                try
-                                {
-                                    var val = engine.GetValue(thisMatch.Groups["ident"].Value);
-                                }
-                                catch
-                                {
-                                    var r = engine.Eval(thisMatch.Groups["expr"].Value);
-                                    engine.UpdateVariable(thisMatch.Groups["ident"].Value, FormulaValue.NewBlank(r.Type));
-                                }
-                            }
-                        }
-                        // eval and print
-                        var result = engine.Eval(line);
+                        var result = engine.Eval(line, parameters, opts);
 
                         if (result is ErrorValue errorValue)
-                            throw new Exception("Error: " + errorValue.Errors[0].Message);
+                            throw new InvalidPluginExecutionException("Error: " + errorValue.Errors[0].Message);
                         else
                         {
-                            localPluginContext.Trace(PrintResult(result));
-                            
-                            
-                            //Do Stuff to eval and update:
-
-
+                            localPluginContext.Trace($"Non-Behavior Eval Output: {PrintResult(result)}");
                         }
+                    }
+
+                    Entity update = contextComparison(parameters, engine, entity.Id);
+                    if(update.Attributes.Count>0){
+                        orgService.Update(update);
                     }
                 }
             }
         }
 
-        Entity contextComparison(Dictionary<string, FormulaValue> Pre, Dictionary<string, FormulaValue> Post) {
-            Entity entity = new Entity(entityName);
-            foreach(var column in Pre){
-                if(Pre[column.Key].Type != Post[column.Key].Type){
-                    throw new InvalidCastException($"Type casting for dataverse columns is not allowed. Attempted to set {Pre[column.Key]} with type {Pre[column.Key].Type} as {Post[column.Key].Type}");
+        Entity contextComparison(RecordValue Pre, RecalcEngine engine, Guid id) {
+            Entity entity = new Entity(entityName, id);
+            foreach(var column in Pre.Fields.ToList()){
+                try{
+                    if(column.Value.Type != engine.GetValue(column.Name).Type){
+                        //I don't think this is actually possible--I think .Eval would throw an ex earlier if this was ever attempted--but no harm in double-checking.
+                        throw new InvalidCastException($"Type re-casting for context parameters is not allowed. Attempted to set {column.Name} with type {column.Value.Type} as {engine.GetValue(column.Name).Type}");
+                    }
+                    if(engine.GetValue(column.Name) != column.Value){
+                        _pluginContext.Trace($"updating parameter {column.Name} to value {engine.GetValue(column.Name)}");
+                        entity[column.Name] = column.Value.ToObject();
+                    }
                 }
-                if(Pre[column.Key] != Post[column.Key]){
-                    entity[column.Key] = Post[column.Key];
+                catch(Exception ex){
+                    string msg = $"Exception while comparing parameter values pre and post execution: {ex.Message}";
+                    _pluginContext.Trace(msg);
+                    throw new InvalidPluginExecutionException(msg);
                 }
             }
             return entity;
         }
 
-        void updateColumn(string column, Microsoft.PowerFx.Types.FormulaValue value){
-
-        }
         string PrintResult(object value, Boolean minimal = false)
         {
             _pluginContext.Trace("Entered PrintResult");

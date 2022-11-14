@@ -9,6 +9,7 @@
       <type>Multiple</type>
     </type-group>
     <property name="context" display-name-key="Context Column" description-key="Bind this control to the column used to store Context" of-type-group="strings" usage="bound" required="true" />
+    <property name="tableName" display-name-key="Table Name" description-key="The column used to store the name of the table targeted in this plugin command" of-type-group="strings" usage="bound" required="true" />
     <resources>
       <code path="index.ts" order="1"/>
       <platform-library name="React" version="16.8.6" />
