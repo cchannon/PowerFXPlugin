@@ -33,7 +33,7 @@ const gridStyles: Partial<IDetailsListStyles> = {
             flexDirection: 'column',
             alignItems: 'start',
             height: '45vh',
-            width:'25vw'
+            width:'20vw'
             },
         },
     },
@@ -70,7 +70,7 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
     const [hasSelection, setHasSelection] = React.useState(false);
     
     const stackTokens : IStackTokens = {
-        maxWidth:"25vw",
+        //maxWidth:"25vw",
         childrenGap: 's'
     }
 

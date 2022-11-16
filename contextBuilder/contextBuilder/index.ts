@@ -63,10 +63,10 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
                 case 'status':
                 case 'state':
                 case 'picklist':
-                    obj[attrib] = { label: "optionsetlabel", value: 123245 };
+                    obj[attrib] = { label: "Optionset Label", value: 123245 };
                     break;
                 case 'lookup':
-                    obj[attrib] = { label: "PrimaryColumnString", value: "{A GUID}" };
+                    obj[attrib] = { table: "Schemaname", label: "Primary Column String", id: "GUID" };
                     break;
                 case 'integer':
                 case 'bigint':
@@ -74,7 +74,7 @@ export class contextBuilder implements ComponentFramework.ReactControl<IInputs, 
                     obj[attrib] = 12345;
                     break;
                 default:
-                    obj[attrib] = "StringValue";
+                    obj[attrib] = "String Value";
                     break;
             }
         });
