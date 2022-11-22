@@ -7,6 +7,9 @@ using System.Linq;
 using Microsoft.Xrm.Sdk.Query;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
+using System.Runtime.Serialization.Json;
+using System.IO;
+using Newtonsoft.Json;
 
 namespace pfxPlugin
 {
@@ -14,8 +17,13 @@ namespace pfxPlugin
     {
         private string pfxRecordId = null;
         private ILocalPluginContext _pluginContext;
-        private IOrganizationService orgService;
         private string entityName;
+        private ParserOptions opts;
+        private RecordValue parameters;
+        private List<string> reservedColumns = new List<string>(){
+            "createdon","createdby","modifiedon","modifiedby","timezoneruleversionnumber","versionnumber","importsequencenumber","utcconversiontimezonecode"
+        };
+
         public Plugin1(string unsecureConfiguration, string secureConfiguration)
             : base(typeof(Plugin1))
         {
@@ -26,68 +34,135 @@ namespace pfxPlugin
 
         protected override void ExecuteDataversePlugin(ILocalPluginContext localPluginContext)
         {
-            localPluginContext.Trace("Begin");
-            if (localPluginContext == null)
-            {
-                throw new ArgumentNullException(nameof(localPluginContext));
-            }
-            _pluginContext = localPluginContext;
+            try {
+                if (localPluginContext == null)
+                {
+                    throw new ArgumentNullException(nameof(localPluginContext));
+                }
+                _pluginContext = localPluginContext;
 
-            IOrganizationService orgService = _pluginContext.InitiatingUserService;
-            var query = new QueryExpression("ktcs_plugincommand");
-            query.ColumnSet.AddColumns(new string[]{ "ktcs_command", "ktcs_context", "ktcs_formulas", "ktcs_functions" });
-            query.Criteria.AddCondition(new ConditionExpression("ktcs_plugincommandid", ConditionOperator.Equal, pfxRecordId));
-            var results = orgService.RetrieveMultiple(query).Entities;
-            if(results != null && results.Count>0){
-                _pluginContext.Trace("have pfx");
-                if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
-                    _pluginContext.Trace("have Target");
-                    entityName = entity.LogicalName;
-                    var pfxstring = results[0].GetAttributeValue<string>("ktcs_command");
-                    _pluginContext.Trace($"PFX: {pfxstring}");
-                    string global = results[0].GetAttributeValue<string>("ktcs_context");
-                    _pluginContext.Trace($"Have Context. Len: {global.Length}");
-                    var parameters = (RecordValue)FormulaValue.FromJson(global);
-                    var config = new PowerFxConfig();
-                    config.EnableSetFunction();
-                    ParserOptions opts = new ParserOptions { AllowsSideEffects = true };
+                IOrganizationService orgService = _pluginContext.InitiatingUserService;
+                var query = new QueryExpression("ktcs_plugincommand");
+                query.ColumnSet.AddColumns(new string[]{ "ktcs_command", "ktcs_context", "ktcs_formulas", "ktcs_functions" });
+                query.Criteria.AddCondition(new ConditionExpression("ktcs_plugincommandid", ConditionOperator.Equal, pfxRecordId));
+                var results = orgService.RetrieveMultiple(query).Entities;
+                if(results != null && results.Count>0){
+                    if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
+                        entityName = entity.LogicalName;
+                        var pfxstring = results[0].GetAttributeValue<string>("ktcs_command");
+                        _pluginContext.Trace($"PFX: {pfxstring}");
+                        string global = results[0].GetAttributeValue<string>("ktcs_context");
 
-                    var engine = new RecalcEngine(config);
-                    string[] lines = pfxstring.Split(';');
-                    _pluginContext.Trace($"{lines.Count()} commands found.");
-                    foreach (var line in lines){
-                        var result = engine.Eval(line, parameters, opts);
+                        var dynamicObject = JsonConvert.DeserializeObject<Dictionary<string, object>>(global);
+                        _pluginContext.Trace($"{dynamicObject.Count.ToString()} objects found in context");
 
-                        if (result is ErrorValue errorValue)
-                            throw new InvalidPluginExecutionException("Error: " + errorValue.Errors[0].Message);
-                        else
+                        foreach (var pair in dynamicObject)
                         {
-                            localPluginContext.Trace($"Non-Behavior Eval Output: {PrintResult(result)}");
+                            _pluginContext.Trace($"Pair: {pair.Key} ---- {pair.Value}");
+                        }
+
+                        parameters = (RecordValue)FormulaValue.FromJson(global);
+                        var config = new PowerFxConfig();
+                        config.EnableSetFunction();
+                        opts = new ParserOptions { AllowsSideEffects = true };
+
+                        var engine = new RecalcEngine(config);
+                        var symbol = new SymbolTable();
+                        symbol.EnableMutationFunctions();
+                        engine.Config.SymbolTable = symbol;
+
+                        string[] lines = pfxstring.Split(';');
+                        _pluginContext.Trace($"{lines.Count()} commands found.");
+                        foreach (var line in lines){
+                            var result = engine.Eval(line, parameters, opts);
+
+                            if (result is ErrorValue errorValue)
+                                throw new InvalidPluginExecutionException("Error: " + errorValue.Errors[0].Message);
+                            else
+                            {
+                                localPluginContext.Trace($"Non-Behavior Eval Output: {PrintResult(result)}");
+                            }
+                        }
+
+                        Entity update = contextComparison(parameters, engine, entity.Id);
+                        if(update.Attributes.Count>0){
+                            orgService.Update(update);
+                        }
+                        else{
+                            _pluginContext.Trace("No attributes in the context object were modified. Bypassing record update");
                         }
                     }
-
-                    Entity update = contextComparison(parameters, engine, entity.Id);
-                    if(update.Attributes.Count>0){
-                        orgService.Update(update);
-                    }
                 }
+            }
+            catch(Exception ex){
+                _pluginContext.Trace($"Exception in ExecuteDataversePlugin: {ex.Message}");
+                throw;
             }
         }
 
         Entity contextComparison(RecordValue Pre, RecalcEngine engine, Guid id) {
             Entity entity = new Entity(entityName, id);
-            foreach(var column in Pre.Fields.ToList()){
-                try{
-                    if(column.Value.Type != engine.GetValue(column.Name).Type){
-                        //I don't think this is actually possible--I think .Eval would throw an ex earlier if this was ever attempted--but no harm in double-checking.
-                        throw new InvalidCastException($"Type re-casting for context parameters is not allowed. Attempted to set {column.Name} with type {column.Value.Type} as {engine.GetValue(column.Name).Type}");
+            foreach (var column in Pre.Fields.ToList())
+            {
+                try
+                {
+                    _pluginContext.Trace($"Column: {column.Name}");
+                    var evaluated = engine.Eval(column.Name, parameters, opts).ToObject();
+                    if (reservedColumns.Contains(column.Name))
+                    {
+                        _pluginContext.Trace("column for comparison found in list of reserved columns. Skipping eval.");
+                        continue;
                     }
-                    if(engine.GetValue(column.Name) != column.Value){
-                        _pluginContext.Trace($"updating parameter {column.Name} to value {engine.GetValue(column.Name)}");
-                        entity[column.Name] = column.Value.ToObject();
+                    else if (evaluated.GetType().Name == "ExpandoObject") //non-primitive
+                    {
+                        var label = (column.Value.ToObject() as IDictionary<string, object>)["label"];
+                        var value = (column.Value.ToObject() as IDictionary<string, object>).ContainsKey("value") ?
+                                    (column.Value.ToObject() as IDictionary<string, object>)["value"] :
+                                    null;
+                        object postLabel;
+                        if (value != null) //optionset
+                        {
+                            //_pluginContext.Trace($"PreValue -- label: {label.ToString()}, value: {value.ToString()}");
+                            postLabel = engine.Eval($"{column.Name}.label", parameters, opts).ToObject();
+                            object postValue = engine.Eval($"{column.Name}.value", parameters, opts).ToObject();
+                            //_pluginContext.Trace($"PostValue -- label: {postLabel}, value: {postValue}");
+
+                            if (value.ToString() != postValue.ToString())
+                            {
+                                _pluginContext.Trace($"updating parameter {column.Name} from {value.ToString()} to value {postValue.ToString()}");
+                                entity[column.Name] = new Microsoft.Xrm.Sdk.OptionSetValue(int.Parse(postValue.ToString()));
+                            }
+                        }
+                        else //lookup
+                        {
+                            var table = (column.Value.ToObject() as IDictionary<string, object>)["table"];
+                            var preId = (column.Value.ToObject() as IDictionary<string, object>)["id"];
+                            //_pluginContext.Trace($"PreValue -- table: {table.ToString()} label: {label.ToString()}, id: {preId.ToString()}");
+                            postLabel = engine.Eval($"{column.Name}.label", parameters, opts).ToObject();
+                            object postTable = engine.Eval($"{column.Name}.table", parameters, opts).ToObject();
+                            object postId = engine.Eval($"{column.Name}.id", parameters, opts).ToObject();
+                            //_pluginContext.Trace($"PreValue -- table: {postTable} label: {postLabel}, id: {postId}");
+
+                            if (preId.ToString() != postId.ToString())
+                            {
+                                _pluginContext.Trace($"updating parameter {column.Name} to id {postId.ToString()}");
+                                entity[column.Name] = new EntityReference(postTable.ToString(), new Guid(postId.ToString()));
+                            }
+                        }
+                    }
+                    else
+                    {
+                        //_pluginContext.Trace($"PreValue -- {column.Value.ToObject()}");
+                        //_pluginContext.Trace($"PostValue -- {evaluated}");
+                        if (evaluated != column.Value.ToObject())
+                        {
+                            _pluginContext.Trace($"updating parameter {column.Name} to value {evaluated}");
+                            entity[column.Name] = column.Value.ToObject();
+                        }
                     }
                 }
-                catch(Exception ex){
+                catch (Exception ex)
+                {
                     string msg = $"Exception while comparing parameter values pre and post execution: {ex.Message}";
                     _pluginContext.Trace(msg);
                     throw new InvalidPluginExecutionException(msg);
