@@ -5,24 +5,25 @@ using Microsoft.PowerFx.Types;
 using Microsoft.PowerFx.Core;
 using System.Linq;
 using Microsoft.Xrm.Sdk.Query;
-using System.Text.RegularExpressions;
 using System.Collections.Generic;
-using System.Runtime.Serialization.Json;
-using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
 
 namespace pfxPlugin
 {
     public class Plugin1 : PluginBase
     {
+        #region global parameters and unsecureconfig reading
         private string pfxRecordId = null;
         private ILocalPluginContext _pluginContext;
         private string entityName;
+        private Guid entityId;
         private ParserOptions opts;
-        private RecordValue parameters;
-        private List<string> reservedColumns = new List<string>(){
+        private readonly List<string> reservedColumns = new List<string>(){
             "createdon","createdby","modifiedon","modifiedby","timezoneruleversionnumber","versionnumber","importsequencenumber","utcconversiontimezonecode"
         };
+        private RecalcEngine engine;
+        private List<StartMap> preExecutionValues;
+        private Entity preImage;
 
         public Plugin1(string unsecureConfiguration, string secureConfiguration)
             : base(typeof(Plugin1))
@@ -31,50 +32,60 @@ namespace pfxPlugin
                 pfxRecordId = unsecureConfiguration;
             }
         }
+        #endregion
 
         protected override void ExecuteDataversePlugin(ILocalPluginContext localPluginContext)
         {
-            try {
-                if (localPluginContext == null)
-                {
-                    throw new ArgumentNullException(nameof(localPluginContext));
-                }
-                _pluginContext = localPluginContext;
+            try
+            {
 
+                #region parameters and Engine instantiation
+                _pluginContext = localPluginContext ?? throw new ArgumentNullException(nameof(localPluginContext));
                 IOrganizationService orgService = _pluginContext.InitiatingUserService;
-                var query = new QueryExpression("ktcs_plugincommand");
-                query.ColumnSet.AddColumns(new string[]{ "ktcs_command", "ktcs_context", "ktcs_formulas", "ktcs_functions" });
-                query.Criteria.AddCondition(new ConditionExpression("ktcs_plugincommandid", ConditionOperator.Equal, pfxRecordId));
-                var results = orgService.RetrieveMultiple(query).Entities;
-                if(results != null && results.Count>0){
-                    if(localPluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity){
+
+                var config = new PowerFxConfig();
+                config.EnableSetFunction();
+                opts = new ParserOptions { AllowsSideEffects = true };
+
+                engine = new RecalcEngine(config);
+                var symbol = new SymbolTable();
+                symbol.EnableMutationFunctions();
+                engine.Config.SymbolTable = symbol;
+                #endregion
+
+                if (_pluginContext.PluginExecutionContext.InputParameters["Target"] is Entity entity)
+                {
+                    #region declare all variables before Evaluating Pfx
+                    preImage = !_pluginContext.PluginExecutionContext.PreEntityImages.Contains("PreImage")
+                        ? throw new InvalidPluginExecutionException("No PreImage with the name PreImage was found registered on this Plugin Command. Please check the step registration and correctly register the image with all attributes.")
+                        : _pluginContext.PluginExecutionContext.PreEntityImages["PreImage"];
+                    
+                    foreach (var attrib in preImage.Attributes.ToList())
+                    {   
+                        Entity source = entity.Attributes.ContainsKey(attrib.Key) ? entity : preImage;
+                        DeclareVariable(source, attrib);
+                    }
+                    #endregion
+
+                    #region Find and eval pfx
+                    var query = new QueryExpression("ktcs_plugincommand");
+                    query.ColumnSet.AddColumns(new string[] { "ktcs_command", "ktcs_context", "ktcs_formulas", "ktcs_functions" });
+                    query.Criteria.AddCondition(new ConditionExpression("ktcs_plugincommandid", ConditionOperator.Equal, pfxRecordId));
+                    var results = orgService.RetrieveMultiple(query).Entities;
+
+                    if (results != null && results.Count > 0)
+                    {
                         entityName = entity.LogicalName;
                         var pfxstring = results[0].GetAttributeValue<string>("ktcs_command");
                         _pluginContext.Trace($"PFX: {pfxstring}");
-                        string global = results[0].GetAttributeValue<string>("ktcs_context");
+                        //string global = results[0].GetAttributeValue<string>("ktcs_context");
 
-                        var dynamicObject = JsonConvert.DeserializeObject<Dictionary<string, object>>(global);
-                        _pluginContext.Trace($"{dynamicObject.Count.ToString()} objects found in context");
-
-                        foreach (var pair in dynamicObject)
-                        {
-                            _pluginContext.Trace($"Pair: {pair.Key} ---- {pair.Value}");
-                        }
-
-                        parameters = (RecordValue)FormulaValue.FromJson(global);
-                        var config = new PowerFxConfig();
-                        config.EnableSetFunction();
-                        opts = new ParserOptions { AllowsSideEffects = true };
-
-                        var engine = new RecalcEngine(config);
-                        var symbol = new SymbolTable();
-                        symbol.EnableMutationFunctions();
-                        engine.Config.SymbolTable = symbol;
 
                         string[] lines = pfxstring.Split(';');
                         _pluginContext.Trace($"{lines.Count()} commands found.");
-                        foreach (var line in lines){
-                            var result = engine.Eval(line, parameters, opts);
+                        foreach (var line in lines)
+                        {
+                            var result = engine.Eval(line, null, opts);
 
                             if (result is ErrorValue errorValue)
                                 throw new InvalidPluginExecutionException("Error: " + errorValue.Errors[0].Message);
@@ -83,92 +94,123 @@ namespace pfxPlugin
                                 localPluginContext.Trace($"Non-Behavior Eval Output: {PrintResult(result)}");
                             }
                         }
+                        #endregion
 
-                        Entity update = contextComparison(parameters, engine, entity.Id);
-                        if(update.Attributes.Count>0){
+                        Entity update = CompareContext();
+                        if (update.Attributes.Count > 0)
+                        {
                             orgService.Update(update);
                         }
-                        else{
+                        else
+                        {
                             _pluginContext.Trace("No attributes in the context object were modified. Bypassing record update");
                         }
                     }
                 }
             }
-            catch(Exception ex){
-                _pluginContext.Trace($"Exception in ExecuteDataversePlugin: {ex.Message}");
+            catch (Exception ex)
+            {
+                _pluginContext.Trace($"Exception in PFX Plugin: {ex.Message}");
                 throw;
             }
         }
 
-        Entity contextComparison(RecordValue Pre, RecalcEngine engine, Guid id) {
-            Entity entity = new Entity(entityName, id);
-            foreach (var column in Pre.Fields.ToList())
+        private Entity CompareContext()
+        {
+            Entity update = new Entity(entityName, entityId);
+            preExecutionValues.ForEach(x =>
             {
-                try
+                if (!reservedColumns.Contains(x.Attrib))
                 {
-                    _pluginContext.Trace($"Column: {column.Name}");
-                    var evaluated = engine.Eval(column.Name, parameters, opts).ToObject();
-                    if (reservedColumns.Contains(column.Name))
+                    if (x.Value != engine.Eval(x.Attrib))
                     {
-                        _pluginContext.Trace("column for comparison found in list of reserved columns. Skipping eval.");
-                        continue;
-                    }
-                    else if (evaluated.GetType().Name == "ExpandoObject") //non-primitive
-                    {
-                        var label = (column.Value.ToObject() as IDictionary<string, object>)["label"];
-                        var value = (column.Value.ToObject() as IDictionary<string, object>).ContainsKey("value") ?
-                                    (column.Value.ToObject() as IDictionary<string, object>)["value"] :
-                                    null;
-                        object postLabel;
-                        if (value != null) //optionset
+                        if (preImage[x.Attrib].GetType() == typeof(EntityReference))
                         {
-                            //_pluginContext.Trace($"PreValue -- label: {label.ToString()}, value: {value.ToString()}");
-                            postLabel = engine.Eval($"{column.Name}.label", parameters, opts).ToObject();
-                            object postValue = engine.Eval($"{column.Name}.value", parameters, opts).ToObject();
-                            //_pluginContext.Trace($"PostValue -- label: {postLabel}, value: {postValue}");
-
-                            if (value.ToString() != postValue.ToString())
-                            {
-                                _pluginContext.Trace($"updating parameter {column.Name} from {value.ToString()} to value {postValue.ToString()}");
-                                entity[column.Name] = new Microsoft.Xrm.Sdk.OptionSetValue(int.Parse(postValue.ToString()));
-                            }
+                            update.Attributes[x.Attrib] = new EntityReference(
+                                (string)((RecordValue)engine.Eval(x.Attrib)).Fields.ToList().Where(y => y.Name == "LogicalName").FirstOrDefault().Value.ToObject(),
+                                (Guid)((RecordValue)engine.Eval(x.Attrib)).Fields.ToList().Where(y => y.Name == "LogicalName").FirstOrDefault().Value.ToObject()
+                            );
                         }
-                        else //lookup
+                        else if (preImage[x.Attrib].GetType() == typeof(Microsoft.Xrm.Sdk.OptionSetValue))
                         {
-                            var table = (column.Value.ToObject() as IDictionary<string, object>)["table"];
-                            var preId = (column.Value.ToObject() as IDictionary<string, object>)["id"];
-                            //_pluginContext.Trace($"PreValue -- table: {table.ToString()} label: {label.ToString()}, id: {preId.ToString()}");
-                            postLabel = engine.Eval($"{column.Name}.label", parameters, opts).ToObject();
-                            object postTable = engine.Eval($"{column.Name}.table", parameters, opts).ToObject();
-                            object postId = engine.Eval($"{column.Name}.id", parameters, opts).ToObject();
-                            //_pluginContext.Trace($"PreValue -- table: {postTable} label: {postLabel}, id: {postId}");
-
-                            if (preId.ToString() != postId.ToString())
-                            {
-                                _pluginContext.Trace($"updating parameter {column.Name} to id {postId.ToString()}");
-                                entity[column.Name] = new EntityReference(postTable.ToString(), new Guid(postId.ToString()));
-                            }
+                            update.Attributes[x.Attrib] = new Microsoft.Xrm.Sdk.OptionSetValue((int)engine.Eval(x.Attrib).ToObject());
                         }
-                    }
-                    else
-                    {
-                        //_pluginContext.Trace($"PreValue -- {column.Value.ToObject()}");
-                        //_pluginContext.Trace($"PostValue -- {evaluated}");
-                        if (evaluated != column.Value.ToObject())
+                        else
                         {
-                            _pluginContext.Trace($"updating parameter {column.Name} to value {evaluated}");
-                            entity[column.Name] = column.Value.ToObject();
+                            var thing = engine.Eval(x.Attrib).ToObject();
+                            update.Attributes[x.Attrib] = engine.Eval(x.Attrib).ToObject();
                         }
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    string msg = $"Exception while comparing parameter values pre and post execution: {ex.Message}";
-                    _pluginContext.Trace(msg);
-                    throw new InvalidPluginExecutionException(msg);
+                    _pluginContext.Trace($"{x.Attrib} is considered a Reserved column and will not be updated by the PowerFX Plugin Command.");
                 }
+            });
+            return update;
+        }
+
+        private void DeclareVariable(Entity source, KeyValuePair<string, object> attrib)
+        {
+            if (source[attrib.Key].GetType() == typeof(string))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.New((string)source[attrib.Key]));
+                preExecutionValues.Add(new StartMap(attrib.Key, FormulaValue.New((string)source[attrib.Key])));
             }
-            return entity;
+            else if (attrib.Value.GetType() == typeof(bool))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.New((bool)source[attrib.Key]));
+                preExecutionValues.Add(new StartMap(attrib.Key, FormulaValue.New((bool)source[attrib.Key])));
+            }
+            else if (source[attrib.Key].GetType() == typeof(EntityReference))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.FromJson(
+                    JsonSerializer.Serialize(
+                        new EntityRefObj(
+                            ((EntityReference)source[attrib.Key]).Id,
+                            ((EntityReference)source[attrib.Key]).Name,
+                            ((EntityReference)source[attrib.Key]).LogicalName)
+                        )
+                    )
+                );
+                preExecutionValues.Add(new StartMap(
+                    attrib.Key, FormulaValue.FromJson(
+                        JsonSerializer.Serialize(
+                            new EntityRefObj(
+                                ((EntityReference)source[attrib.Key]).Id,
+                                ((EntityReference)source[attrib.Key]).Name,
+                                ((EntityReference)source[attrib.Key]).LogicalName)
+                            )
+                        )
+                    )
+                );
+            }
+            else if (source[attrib.Key].GetType() == typeof(Microsoft.Xrm.Sdk.OptionSetValue))
+            {
+                engine.UpdateVariable(attrib.Key, ((Microsoft.Xrm.Sdk.OptionSetValue)source[attrib.Key]).Value);
+                preExecutionValues.Add(new StartMap(
+                    attrib.Key, 
+                    FormulaValue.New(((Microsoft.Xrm.Sdk.OptionSetValue)source[attrib.Key]).Value)));
+            }
+            else if (source[attrib.Key].GetType() == typeof(DateTime))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.New(((DateTime)source[attrib.Key]).ToLocalTime()));
+                preExecutionValues.Add(new StartMap(
+                    attrib.Key, 
+                    FormulaValue.New(((DateTime)source[attrib.Key]).ToLocalTime())));
+            }
+            else if (attrib.Value.GetType() == typeof(int))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.New((int)source[attrib.Key]));
+                preExecutionValues.Add(new StartMap(attrib.Key, FormulaValue.New((int)source[attrib.Key])));
+            }
+            else if (source[attrib.Key].GetType() == typeof(decimal)
+                || source[attrib.Key].GetType() == typeof(float)
+                || source[attrib.Key].GetType() == typeof(double))
+            {
+                engine.UpdateVariable(attrib.Key, FormulaValue.New((double)source[attrib.Key]));
+                preExecutionValues.Add(new StartMap(attrib.Key, FormulaValue.New((double)source[attrib.Key])));
+            }
         }
 
         string PrintResult(object value, Boolean minimal = false)
@@ -253,5 +295,33 @@ namespace pfxPlugin
 
             return (resultString);
         }
+    }
+
+    public class EntityRefObj
+    {
+        public EntityRefObj(Guid id, string name, string logicalName)
+        {
+            Id = id;
+            Name = name;
+            LogicalName = logicalName;
+        }
+        public Guid Id { get; set; }
+        public string Name { get; set; }
+        public string LogicalName { get; set; }
+
+        public static explicit operator EntityRefObj(FormulaValue v)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    public class StartMap
+    {
+        public StartMap(string attrib, FormulaValue value)
+        {
+            Attrib = attrib;
+            Value = value;
+        }
+        public string Attrib { get; set; }
+        public FormulaValue Value { get; set; }
     }
 }
