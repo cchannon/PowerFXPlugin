@@ -2,6 +2,10 @@
 
 This repo seeks to demonstrate a viable use of PowerFX as a low-code tool for authoring custom logic to execute in Dataverse Plugin Context. There are many business cases that requre plugin execution as opposed to low-code alternatives--such as the need to inject logic into unattended events--and this repo demonstrates an approach to using PowerFX to support those cases.
 
+## Quick Note:
+
+For anyone trying to check out this repo right now: there is an active bughunt in PFX, and I have switched the .sln and .csproj to reference the private PFX Nuget Stream instead of the public one. This is advancing the bughunt, so I have also checked it into Github. If this breaks your build, please add a custom Nuget provider for `https://pkgs.dev.azure.com/ConversationalAI/BotFramework/_packaging/SDK/nuget/v3/index.json`
+
 ## Contents
 
 This repo introduces 4 main elements for addressing this challenge:
