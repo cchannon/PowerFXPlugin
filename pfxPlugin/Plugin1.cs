@@ -209,9 +209,17 @@ namespace pfxPlugin
                         case AttributeTypeCode.Lookup:
                         case AttributeTypeCode.Owner:
                         case AttributeTypeCode.Customer:
+                            //Working with the PowerFX Team on this in Github right now:
+                            //There are a few things that cause issues with managing Record type objects, including:
+                            //- The available Packages on Nuget for Microsoft.PowerFX.Core are behind the ACTUAL latest, and you need to pull from their own Nuget stream
+                            //- The Patch function has some quirks in the core language, and while there are three overloads for it, none of them really work exactly as you'd expect
+                            // So, some work continues, but I will update this code, and these notes, as soon as I figure out how to properly handly mutation functions on Record Type objects
+                            // If you want to keep posted, watch the discussion here: https://github.com/microsoft/Power-Fx/discussions/889
+
                             //not sure this is going to work. Need to test this.
-                            engine.UpdateVariable(attrib, FormulaValue.NewBlank(FormulaType.UntypedObject));
-                            preExecutionValues.Add(new StartMap(attrib, FormulaValue.NewBlank(FormulaType.UntypedObject)));
+                            //-- nope. doesn't work.
+                            //engine.UpdateVariable(attrib, FormulaValue.NewBlank(FormulaType.UntypedObject));
+                            //preExecutionValues.Add(new StartMap(attrib, FormulaValue.NewBlank(FormulaType.UntypedObject)));
                             break;
                         case AttributeTypeCode.String:
                         case AttributeTypeCode.Memo:
@@ -261,7 +269,7 @@ namespace pfxPlugin
                 engine.UpdateVariable(attrib, FormulaValue.FromJson(
                     JsonSerializer.Serialize(
                         new EntityRefObj(
-                            ((EntityReference)source[attrib]).Id,
+                            ((EntityReference)source[attrib]).Id.ToString(),
                             ((EntityReference)source[attrib]).Name,
                             ((EntityReference)source[attrib]).LogicalName)
                         )
@@ -271,7 +279,7 @@ namespace pfxPlugin
                     attrib, FormulaValue.FromJson(
                         JsonSerializer.Serialize(
                             new EntityRefObj(
-                                ((EntityReference)source[attrib]).Id,
+                                ((EntityReference)source[attrib]).Id.ToString(),
                                 ((EntityReference)source[attrib]).Name,
                                 ((EntityReference)source[attrib]).LogicalName)
                             )
@@ -397,13 +405,13 @@ namespace pfxPlugin
 
     public class EntityRefObj
     {
-        public EntityRefObj(Guid id, string name, string logicalName)
+        public EntityRefObj(string id, string name, string logicalName)
         {
             Id = id;
             Name = name;
             LogicalName = logicalName;
         }
-        public Guid Id { get; set; }
+        public string Id { get; set; }
         public string Name { get; set; }
         public string LogicalName { get; set; }
 
