@@ -86,7 +86,7 @@ namespace pfxPlugin
                             DeclareVariable(source, attrib.LogicalName);
                         }
                     }
-                    engine.UpdateVariable("WorkPackages", FormulaValue.NewTable(references.FirstOrDefault().Type, references));
+                    engine.UpdateVariable("Lookups", FormulaValue.NewTable(references.FirstOrDefault().Type, references));
 
                     #endregion
 
