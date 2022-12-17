@@ -29,8 +29,8 @@
     <PackageReference Include="Microsoft.CrmSdk.CoreAssemblies" Version="9.0.2.*" PrivateAssets="All" />
     <PackageReference Include="Microsoft.PowerApps.MSBuild.Plugin" Version="1.*" PrivateAssets="All" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.*" PrivateAssets="All" />
-    <PackageReference Include="Microsoft.PowerFx.Core" Version="0.2.3-preview.20221209-332685" GeneratePathProperty="true" />
-    <PackageReference Include="Microsoft.PowerFx.Interpreter" Version="0.2.3-preview.20221209-332685" />
+    <PackageReference Include="Microsoft.PowerFx.Core" Version="0.2.3-preview.20221213-333319" GeneratePathProperty="true" />
+    <PackageReference Include="Microsoft.PowerFx.Interpreter" Version="0.2.3-preview.20221213-333319" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
   </ItemGroup>
 

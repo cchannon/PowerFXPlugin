@@ -20,7 +20,7 @@ namespace pfxPlugin
         private List<StartMap> preExecutionValues = new List<StartMap>();
         AttributeMetadata[] attributeMetadata;
         private readonly List<string> reservedColumns = new List<string>(){
-            "createdon","overriddencreatedon","createdby","modifiedon","modifiedby","timezoneruleversionnumber","versionnumber","importsequencenumber","utcconversiontimezonecode"
+            "createdon","overriddencreatedon","createdby","modifiedon","modifiedby","modifiedonbehalfby","timezoneruleversionnumber","versionnumber","importsequencenumber","utcconversiontimezonecode"
         };
         private List<RecordValue> references = new List<RecordValue>();
 
@@ -76,7 +76,7 @@ namespace pfxPlugin
                         //only evaluate valid, non-virtual and non-calcluated cols: 
                         if (attrib.IsValidODataAttribute)
                         {
-                            _pluginContext.Trace($"attr: {attrib.LogicalName}");
+                            //_pluginContext.Trace($"attr: {attrib.LogicalName}");
                             Entity source = null;
                             if (target.Attributes.ContainsKey(attrib.LogicalName))
                                 source = target;
@@ -151,6 +151,8 @@ namespace pfxPlugin
                     return;
                 }
                 var attributeType = attributeMetadata.Where(y => y.LogicalName == x.Attrib).FirstOrDefault().AttributeType;
+                object pre;
+                object post;
                 switch (attributeType)
                 {
                     case AttributeTypeCode.Boolean:
@@ -161,12 +163,11 @@ namespace pfxPlugin
                         }
                         break;
                     case AttributeTypeCode.DateTime:
-                        _pluginContext.Trace("test");
-                        _pluginContext.Trace(PrintResult(engine.Eval(x.Attrib)));
-                        _pluginContext.Trace(x.Value.ToObject().ToString());
-                        _pluginContext.Trace(((DateTime)x.Value.ToObject()).ToString());
-                        
-                        if ((DateTime)x.Value.ToObject() != (DateTime)engine.Eval(x.Attrib).ToObject())
+                        pre = x.Value.ToObject();
+                        post = engine.Eval(x.Attrib).ToObject();
+                        if (pre != null && post == null ||
+                            pre == null && post != null ||
+                            pre != null && post != null && (DateTime)pre != (DateTime)post)
                         {
                             _pluginContext.Trace($"update detected in {x.Attrib}");
                             update.Add(new KeyValuePair<string, object>(x.Attrib, (DateTime)engine.Eval(x.Attrib).ToObject()));
@@ -182,16 +183,24 @@ namespace pfxPlugin
                         break;
                     case AttributeTypeCode.Integer:
                     case AttributeTypeCode.BigInt:
-                        if ((int)x.Value.ToObject() != (int)engine.Eval(x.Attrib).ToObject())
+                        pre = x.Value.ToObject();
+                        post = engine.Eval(x.Attrib).ToObject();
+                        if (pre != null && post == null ||
+                            pre == null && post != null ||
+                            pre != null && post != null && (int)(double)pre != (int)(double)post)
                         {
                             _pluginContext.Trace($"update detected in {x.Attrib}");
-                            update.Add(new KeyValuePair<string, object>(x.Attrib, (int)engine.Eval(x.Attrib).ToObject()));
+                            update.Add(new KeyValuePair<string, object>(x.Attrib, (int)(double)engine.Eval(x.Attrib).ToObject()));
                         }
                         break;
                     case AttributeTypeCode.Decimal:
                     case AttributeTypeCode.Double:
                     case AttributeTypeCode.Money:
-                        if ((double)x.Value.ToObject() != (double)engine.Eval(x.Attrib).ToObject())
+                        pre = x.Value.ToObject();
+                        post = engine.Eval(x.Attrib).ToObject();
+                        if (pre != null && post == null ||
+                            pre == null && post != null ||
+                            pre != null && post != null && (double)pre != (double)post)
                         {
                             _pluginContext.Trace($"update detected in {x.Attrib}");
                             update.Add(new KeyValuePair<string, object>(x.Attrib, (double)engine.Eval(x.Attrib).ToObject()));
@@ -204,25 +213,35 @@ namespace pfxPlugin
                         {
                             _pluginContext.Trace($"update detected in {x.Attrib}");
                             update.Add(
-                            new KeyValuePair<string, object>(
-                                x.Attrib,
-                                new EntityReference(
-                                    engine.Eval($"{x.Attrib}.LogicalName").ToObject().ToString(),
-                                    new Guid(engine.Eval($"{x.Attrib}.Id").ToObject().ToString())
+                                new KeyValuePair<string, object>(
+                                    x.Attrib,
+                                    new EntityReference(
+                                        engine.Eval($"{x.Attrib}.LogicalName").ToObject().ToString(),
+                                        new Guid(engine.Eval($"{x.Attrib}.Id").ToObject().ToString())
+                                    )
                                 )
-                            )
-                        );
+                            );
                         }
                         break;
                     case AttributeTypeCode.Picklist:
                     case AttributeTypeCode.State:
                     case AttributeTypeCode.Status:
-                        update.Add(
-                            new KeyValuePair<string, object>(
-                                x.Attrib,
-                                new Microsoft.Xrm.Sdk.OptionSetValue((int)(double)engine.Eval(x.Attrib).ToObject())
-                            )
-                        );
+                        pre = x.Value.ToObject();
+                        post = engine.Eval(x.Attrib).ToObject();
+                        if (pre != null && post == null ||
+                            pre == null && post != null ||
+                            pre != null && post != null && (int)(double)pre != (int)(double)post)
+                        {
+                            _pluginContext.Trace($"update detected in {x.Attrib}");
+                            update.Add(
+                                new KeyValuePair<string, object>(
+                                    x.Attrib,
+                                    post != null 
+                                        ? new Microsoft.Xrm.Sdk.OptionSetValue((int)(double)post) 
+                                        : null
+                                )
+                            );
+                        }
                         break;
                 }
             });
@@ -270,7 +289,7 @@ namespace pfxPlugin
                     case AttributeTypeCode.Integer:
                     case AttributeTypeCode.Decimal:
                     case AttributeTypeCode.Double:
-                    //case AttributeTypeCode.Money:
+                    case AttributeTypeCode.Money:
                     case AttributeTypeCode.Picklist:
                     case AttributeTypeCode.State:
                     case AttributeTypeCode.Status:
@@ -290,7 +309,7 @@ namespace pfxPlugin
             }
             else if (source[attrib].GetType() == typeof(bool))
             {
-                _pluginContext.Trace("type: bool");
+                //_pluginContext.Trace("type: bool");
                 engine.UpdateVariable(attrib, FormulaValue.New((bool)source[attrib]));
                 preExecutionValues.Add(new StartMap(attrib, FormulaValue.New((bool)source[attrib])));
             }
@@ -298,46 +317,61 @@ namespace pfxPlugin
             {
                 NamedValue[] values = new NamedValue[]
                 {
-                    new NamedValue(new KeyValuePair<string, FormulaValue>("Id", FormulaValue.New(((EntityReference)source[attrib]).Id.ToString()))),
+                    new NamedValue(new KeyValuePair<string, FormulaValue>(
+                        "Id", 
+                        FormulaValue.New(source.GetAttributeValue<EntityReference>(attrib).Id.ToString()))),
                     //This is a strange one: owningteam sometimes returns a null Name here and I don't know why.
                     //Can't pass a Null to FormulaValue.New though, so we need the Nullish operator
-                    new NamedValue(new KeyValuePair<string, FormulaValue>("Name", FormulaValue.New(((EntityReference)source[attrib]).Name??""))),
-                    new NamedValue(new KeyValuePair<string, FormulaValue>("LogicalName", FormulaValue.New(((EntityReference)source[attrib]).LogicalName)))
+                    new NamedValue(new KeyValuePair<string, FormulaValue>(
+                        "Name", 
+                        FormulaValue.New(source.GetAttributeValue<EntityReference>(attrib).Name??""))),
+                    new NamedValue(new KeyValuePair<string, FormulaValue>(
+                        "LogicalName", 
+                        FormulaValue.New(source.GetAttributeValue<EntityReference>(attrib).LogicalName)))
                 };
                 var record = FormulaValue.NewRecordFromFields(values);
                 engine.UpdateVariable(attrib, record);
-                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(((EntityReference)source[attrib]).Id.ToString())));
+                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(source.GetAttributeValue<EntityReference>(attrib).Id.ToString())));
                 references.Add(record);
             }
             else if (source[attrib].GetType() == typeof(Microsoft.Xrm.Sdk.OptionSetValue))
             {
-                //_pluginContext.Trace("type: Optionset");
-                engine.UpdateVariable(attrib, ((Microsoft.Xrm.Sdk.OptionSetValue)source[attrib]).Value);
+                engine.UpdateVariable(attrib, source.GetAttributeValue<Microsoft.Xrm.Sdk.OptionSetValue>(attrib).Value);
                 preExecutionValues.Add(new StartMap(
                     attrib, 
-                    FormulaValue.New(((Microsoft.Xrm.Sdk.OptionSetValue)source[attrib]).Value)));
+                    FormulaValue.New(source.GetAttributeValue<Microsoft.Xrm.Sdk.OptionSetValue>(attrib).Value)));
             }
             else if (source[attrib].GetType() == typeof(DateTime))
             {
                 //_pluginContext.Trace("type: DateTime");
-                engine.UpdateVariable(attrib, FormulaValue.New(((DateTime)source[attrib]).ToLocalTime()));
+                engine.UpdateVariable(attrib, FormulaValue.New(source.GetAttributeValue<DateTime>(attrib).ToLocalTime()));
                 preExecutionValues.Add(new StartMap(
                     attrib, 
-                    FormulaValue.New(((DateTime)source[attrib]).ToLocalTime())));
+                    FormulaValue.New(source.GetAttributeValue<DateTime>(attrib).ToLocalTime())));
             }
             else if (source[attrib].GetType() == typeof(int))
             {
                 //_pluginContext.Trace("type: int");
-                engine.UpdateVariable(attrib, FormulaValue.New((int)source[attrib]));
-                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New((int)source[attrib])));
+                engine.UpdateVariable(attrib, FormulaValue.New(source.GetAttributeValue<int>(attrib)));
+                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(source.GetAttributeValue<int>(attrib))));
             }
-            else if (source[attrib].GetType() == typeof(decimal)
-                || source[attrib].GetType() == typeof(float)
-                || source[attrib].GetType() == typeof(double))
+            else if (source[attrib].GetType() == typeof(decimal))
             {
                 //_pluginContext.Trace("type: decimal");
-                engine.UpdateVariable(attrib, FormulaValue.New((double)source[attrib]));
-                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New((double)source[attrib])));
+                engine.UpdateVariable(attrib, FormulaValue.New(source.GetAttributeValue<decimal>(attrib)));
+                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(source.GetAttributeValue<decimal>(attrib))));
+            }
+            else if (source[attrib].GetType() == typeof(float))
+            {
+                //_pluginContext.Trace("type: float");
+                engine.UpdateVariable(attrib, FormulaValue.New(source.GetAttributeValue<float>(attrib)));
+                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(source.GetAttributeValue<float>(attrib))));
+            }
+            else if(source[attrib].GetType() == typeof(double))
+            {
+                //_pluginContext.Trace("type: double");
+                engine.UpdateVariable(attrib, FormulaValue.New(source.GetAttributeValue<double>(attrib)));
+                preExecutionValues.Add(new StartMap(attrib, FormulaValue.New(source.GetAttributeValue<double>(attrib))));
             }
             #endregion
         }
@@ -424,23 +458,6 @@ namespace pfxPlugin
         }
     }
 
-    public class EntityRefObj
-    {
-        public EntityRefObj(string id, string name, string logicalName)
-        {
-            Id = id;
-            Name = name;
-            LogicalName = logicalName;
-        }
-        public string Id { get; set; }
-        public string Name { get; set; }
-        public string LogicalName { get; set; }
-
-        public static explicit operator EntityRefObj(FormulaValue v)
-        {
-            throw new NotImplementedException();
-        }
-    }
     public class StartMap
     {
         public StartMap(string attrib, FormulaValue value)
