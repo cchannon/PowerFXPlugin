@@ -49,7 +49,7 @@ This Monaco editor gives the user basic syntax coloring, but none of the server-
 Disclaimers: 
 - The plugin execution currently only supports the context of the currently executing record. We're hoping in the future to support other records in the same table, then other dataverse tables, then (maybe someday!) other datasources, but for this immediate release, the context is very limited.
 - The plugin package has only been written to support Update events so far. Create, Delete, and other event types are not yet supported.
-- Mutation effects on Records are working, but has only been tested on "standard" column types (i.e. I haven't even tried to support multi-select optionsets or polymorphic lookups or attachment columns).
+- Mutation effects on Records are working, but has only been tested on "standard" column types (i.e. I haven't even tried to support multi-select optionsets ~~or polymorphic lookups~~ or attachment columns). *UPDATE:* Polymorphic columns are now added and tested using Customer type lookup
 - The pfx Plugin was written on the latest PAC Plugin template, and uses the base class from that plugin template.
 - This Plugin was written as a Plugin Package, since it requires external Nuget packages from the PFX team.
 - The Plugin Package can ONLY be deployed as a package, and not as a freestanding Plugin Assembly, so if you aren't comfortable with managing assembly dependencies, I suggest you wait until the--let's call it "alpha" release--solution file is available 😁
