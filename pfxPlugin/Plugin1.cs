@@ -39,7 +39,6 @@ namespace pfxPlugin
             {
                 #region parameters and Engine instantiation
                 _pluginContext = localPluginContext ?? throw new ArgumentNullException(nameof(localPluginContext));
-                _pluginContext.Trace("Begin");
                 IOrganizationService orgService = _pluginContext.InitiatingUserService;
 
                 var config = new PowerFxConfig();
@@ -54,7 +53,6 @@ namespace pfxPlugin
 
                 if (_pluginContext.PluginExecutionContext.InputParameters["Target"] is Entity target)
                 {
-                    _pluginContext.Trace("Have Target");
                     #region declare all variables before Evaluating Pfx
                     Entity preImage = !_pluginContext.PluginExecutionContext.PreEntityImages.Contains("PreImage")
                         ? throw new InvalidPluginExecutionException("No PreImage with the name PreImage was found registered on this Plugin Command. Please check the step registration and correctly register the image with all attributes.")
@@ -70,7 +68,7 @@ namespace pfxPlugin
 
                     attributeMetadata = metadataResponse.Attributes;
                     
-                    _pluginContext.Trace("Declaring Variables");
+                    //_pluginContext.Trace("Declaring Variables");
                     foreach (var attrib in attributeMetadata)
                     {
                         //only evaluate valid, non-virtual and non-calcluated cols: 
@@ -141,13 +139,11 @@ namespace pfxPlugin
             AttributeCollection update = new AttributeCollection();
             preExecutionValues.ForEach(x =>
             {
-                _pluginContext.Trace(x.Attrib);
-
                 if (reservedColumns.Contains(x.Attrib))
                 {
                     //Do not attempt to update columns in the reserved list.
                     //Maybe we should throw() instead? a quiet fail does seem a bit wrong...
-                    _pluginContext.Trace("reserved column");
+                    //_pluginContext.Trace($"reserved column: {x.Attrib}");
                     return;
                 }
                 var attributeType = attributeMetadata.Where(y => y.LogicalName == x.Attrib).FirstOrDefault().AttributeType;
@@ -253,7 +249,7 @@ namespace pfxPlugin
         {
             #region no value was found in target or preimage
             //meaning we need to instantiate a new Blank of the right type from metatdata request
-            if (source == null)
+            if (source == null || source[attrib] == null)
             {
                 var attr = attributeMetadata.Where(x => x.LogicalName == attrib).FirstOrDefault();
                 switch (attr.AttributeType)
