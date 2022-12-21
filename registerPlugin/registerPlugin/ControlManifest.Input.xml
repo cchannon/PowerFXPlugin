@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="ktcs" constructor="registerPlugin" version="0.0.1" display-name-key="registerPlugin" description-key="registerPlugin description" control-type="virtual" >
+  <control namespace="ktcs" constructor="registerplugin" version="0.0.1" display-name-key="registerplugin" description-key="registerplugin description" control-type="virtual" >
     <external-service-usage enabled="false">
     </external-service-usage>
-    <type-group name="strings">
-      <type>SingleLine.Text</type>
-      <type>SingleLine.TextArea</type>
-      <type>Multiple</type>
-    </type-group>
-    <property name="context" display-name-key="context" description-key="the Context text box on the form" of-type-group="strings" usage="bound" required="true" />
-    <property name="registered" display-name-key="registered" description-key="a boolean attribute on the form indicating whether the plugin has already been registered" of-type="TwoOptions" usage="bound" required="true" />
-    <property name="plugin" display-name-key="Plugin Name" description-key="The name of the registered Plugin (including the Assembly name!)" of-type="SingleLine.Text" usage="input" required="true" />
+    <property name="pluginStep" display-name-key="Plugin Step" description-key="A string type column on the form for storing the registered plugin step name" of-type="SingleLine.Text" usage="input" required="true" />
+    <property name="pluginAssembly" display-name-key="Plugin Assembly" description-key="The name of the registered Plugin Assembly" of-type="SingleLine.Text" usage="input" required="true" />
     <resources>
       <code path="index.ts" order="1"/>
       <platform-library name="React" version="16.8.6" />

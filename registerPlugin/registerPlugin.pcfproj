@@ -9,7 +9,7 @@
 
   <PropertyGroup>
     <Name>registerPlugin</Name>
-    <ProjectGuid>4f9ba212-256b-4794-9530-7622c5b89d5a</ProjectGuid>
+    <ProjectGuid>7b5b0b1b-1ae5-47c6-917c-c0407e550b19</ProjectGuid>
     <OutputPath>$(MSBuildThisFileDirectory)out\controls</OutputPath>
   </PropertyGroup>
 
