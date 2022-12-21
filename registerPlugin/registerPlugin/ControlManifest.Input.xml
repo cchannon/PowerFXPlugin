@@ -3,7 +3,7 @@
   <control namespace="ktcs" constructor="registerplugin" version="0.0.1" display-name-key="registerplugin" description-key="registerplugin description" control-type="virtual" >
     <external-service-usage enabled="false">
     </external-service-usage>
-    <property name="pluginStep" display-name-key="Plugin Step" description-key="A string type column on the form for storing the registered plugin step name" of-type="SingleLine.Text" usage="input" required="true" />
+    <property name="pluginStep" display-name-key="Plugin Step" description-key="A string type column on the form for storing the registered plugin step Id" of-type="SingleLine.Text" usage="input" required="true" />
     <property name="pluginAssembly" display-name-key="Plugin Assembly" description-key="The name of the registered Plugin Assembly" of-type="SingleLine.Text" usage="input" required="true" />
     <resources>
       <code path="index.ts" order="1"/>

@@ -51,7 +51,7 @@ export const picker: React.FC<IPickerProps> = ((props: IPickerProps) => {
     const [options, setOptions] = React.useState(allOptions);
 
     if(allOptions.length == 0){
-        props.context.webAPI.retrieveMultipleRecords("entity", "?$select=originallocalizedcollectionname,logicalname&$filter=originallocalizedcollectionname ne null").then(
+        props.context.webAPI.retrieveMultipleRecords("entity", "?$select=collectionname,logicalname&$filter=collectionname ne null").then(
             (success) => {
                 let index = 1;
                 success.entities.forEach(x => {

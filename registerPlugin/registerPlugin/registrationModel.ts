@@ -1,4 +1,5 @@
-export class register{
+export class step{
+    public Id: string | null;
     public AssemblyName: string;
     public StepName: string;
     public SdkMessage: sdkMessage;
@@ -13,19 +14,6 @@ export class register{
     public filterAttributes: string[];
 }
 
-export enum sdkMessage{
-    create=0,
-    update=1,
-    delete=2
-}
-
-export enum stage{
-    preValidation=0,
-    preOperation=1,
-    postOperation=2
-}
-
-export enum mode{
-    synchronous=0,
-    asynchronous=1
-}
+export type sdkMessage = "Create" | "Update" | "Delete";
+export type stage = "Pre-validation" | "Pre-operation" | "Post-operation";
+export type mode = "Synchronous" | "Asynchronous";

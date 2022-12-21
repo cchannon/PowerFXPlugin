@@ -20,8 +20,9 @@ export class registerplugin implements ComponentFramework.ReactControl<IInputs, 
 
     public updateView(context: ComponentFramework.Context<IInputs>): React.ReactElement {
         const props: IRegProps = { 
-            assemblyName: "assemblyname", 
-            stepName: "stepname",
+            assemblyName: context.parameters.pluginAssembly.raw, 
+            stepId: context.parameters.pluginStep.raw,
+            webApi: context.webAPI,
             callback: this.callback.bind(this)
         };
         return React.createElement(
@@ -29,8 +30,8 @@ export class registerplugin implements ComponentFramework.ReactControl<IInputs, 
         );
     }
 
-    public callback(registration: Register.register){
-        
+    public callback(registration: Register.step){
+        //callback logic goes here
     }
 
     public getOutputs(): IOutputs {
