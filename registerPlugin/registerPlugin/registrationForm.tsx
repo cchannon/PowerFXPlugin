@@ -18,13 +18,16 @@ import {
   TagPicker,
   Text,
   TextField,
-  ContextualMenu
+  ContextualMenu,
+  DialogType,
+  DialogFooter,
+  DefaultButton,
 } from "@fluentui/react";
 import * as React from "react";
 import * as Register from "./registrationModel";
 
 export interface IRegProps {
-  assemblyName: string | null;
+  pluginName: string | null;
   stepId: string | null;
   webApi: ComponentFramework.WebApi;
   callback: (parameters: Register.step) => void;
@@ -70,17 +73,14 @@ let _secureConfig: string | undefined = "";
 let _unsecureConfig: string | undefined = "";
 let _executionOrder: number = 1;
 let _allTables: IComboBoxOption[] = [];
-let _modalProps: IModalProps= {
-    titleAriaId: "No records found",
-    subtitleAriaId: "No records found",
-    isBlocking: false,
-    dragOptions: {
-        moveMenuItemText: 'Move',
-        closeMenuItemText: 'Close',
-        menu: ContextualMenu,
-        keepInBounds: true,
-      }
-  }
+let _defaulted: boolean = false;
+const _dialogContentProps = {
+  type: DialogType.normal,
+  title: "No Rows Found",
+  closeButtonAriaLabel: "Close",
+  subText:
+    "No Rows were found on this selected table. At least one row must exist before you can register the plugin step.",
+};
 //#endregion
 
 export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
@@ -100,16 +100,69 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
   const [formReady, setFormReady] = React.useState(false);
   const [allTables, setAllTables] = React.useState(_allTables);
   const [hasRows, setHasRows] = React.useState(true);
+
   //#endregion
 
   //handle null assemblyname
-  if (!props.assemblyName) {
+  if (!props.pluginName) {
     return (
       <Text variant="xLarge">
-        No Plugin Assembly has been designated for this registration area.
-        Please designate an Assembly before attempting to register.
+        No Plugin has been designated for this registration area. Please
+        designate an Assembly and Plugin before attempting to register.
       </Text>
     );
+  }
+
+  //Get Existing Step Config and default values
+  if (props.stepId && !_defaulted) {
+    props.webApi
+      .retrieveRecord(
+        "sdkmessageprocessingstep",
+        props.stepId,
+        "?$select=mode,rank,filteringattributes,stage,name,configuration&$expand=sdkmessageid($select=name),sdkmessagefilterid($select=primaryobjecttypecode)"
+      )
+      .then(
+        (success) => {
+          _defaulted = true;
+          if (success.sdkmessagefilterid.primaryobjecttypecode) {
+            //this one needs its own handler so we can unlock the rest of the form (text prop doesn't actually fire change event on combobox)
+            onDefaultPrimaryTable(
+              success.sdkmessagefilterid.primaryobjecttypecode
+            );
+          }
+          if (success.sdkmessageid.name) {
+            setSelectedMessage(success.sdkmessageid.name);
+          }
+          setSelectedMode(success.mode === 1 ? "Asynchronous" : "Synchronous");
+          if (success.stage) {
+            setSelectedStage(
+              success.stage === 10
+                ? "Pre-validation"
+                : success.stage === 20
+                ? "Pre-operation"
+                : "Post-operation"
+            );
+          }
+          if (success.rank) {
+            setExecutionOrder(success.rank);
+          }
+          if (success.configuration) {
+            setUnsecureConfig(success.configuration);
+          }
+          if (success.filteringattributes) {
+            setSelectedAttribs(
+              (success.filteringattributes as string).split(",")
+            );
+          }
+          if (success.name) {
+            setStepName(success.name);
+          }
+        },
+        (error) => {
+          //handle error with a modal popup
+          console.log(error);
+        }
+      );
   }
 
   //Get Tables
@@ -124,32 +177,16 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
         success.entities.forEach((x) => {
           tables.push({
             key: x.logicalname,
-            text: x.collectionname,
+            text: x.logicalname,
           } as IComboBoxOption);
         });
-        setAllTables(tables);
+        setAllTables(
+          tables.sort((a, b) => {
+            return a.text.localeCompare(b.text);
+          })
+        );
       });
   }
-
-  //Get Table Attributes
-  const getTableAttributes = React.useCallback((tablename: string | undefined) => {
-    if(!tablename){
-        setFormReady(false);
-    }
-    else{
-        props.webApi.retrieveMultipleRecords(tablename, undefined, 1).then((e) => {
-            if(e.entities.length === 0){
-                setHasRows(false);
-            }
-            else{
-                let ent = e.entities[0];
-            }
-        },
-        (err) => {
-            console.log(err);
-        });
-    }
-  }, []);
 
   //#region Change Handlers
   const onChangePrimaryTable = React.useCallback(
@@ -161,6 +198,22 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
     ) => {
       setPrimaryTable(option?.key.toString());
       getTableAttributes(option?.key.toString());
+      defaultStepName(option?.key.toString(), selectedMessage);
+    },
+    []
+  );
+  const onDefaultPrimaryTable = React.useCallback((option: string) => {
+    setPrimaryTable(option);
+    getTableAttributes(option);
+    defaultStepName(option, selectedMessage);
+  }, []);
+  const onChangeSelectedMessage = React.useCallback(
+    (
+      _: React.FormEvent<HTMLElement | HTMLInputElement> | undefined,
+      option?: IChoiceGroupOption | undefined
+    ) => {
+      setSelectedMessage(option?.text as Register.sdkMessage);
+      defaultStepName(primaryTable, option?.text as Register.sdkMessage);
     },
     []
   );
@@ -170,46 +223,23 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
       newValue?: string
     ) => {
       setStepName(newValue);
+      if (newValue) {
+        setFormReady(true);
+      } else {
+        setFormReady(false);
+      }
     },
     []
   );
-  const onResolveFilterAttributes = (
-    filterText: string,
-    selectedItems: ITag[] | undefined
-  ): ITag[] => {
-    return [];
-    // return filterText
-    //   ? testTags.filter(
-    //       tag => tag.name.toLowerCase().indexOf(filterText.toLowerCase()) === 0 && !listContainsTagList(tag, tagList),
-    //     )
-    //   : [];
-  };
-  const onClickRegister = () => {
-    let registration: Register.step = {
-      Id: props.stepId,
-      AssemblyName: props.assemblyName!,
-      StepName: stepName!,
-      SdkMessage: selectedMessage,
-      Stage: selectedStage,
-      Mode: selectedMode,
-      primaryTable: primaryTable!,
-      secondaryTable: "",
-      executionOrder: executionOrder,
-      description: "",
-      unsecureConfig: unsecureConfig ?? "",
-      secureConfig: secureConfig ?? "",
-      filterAttributes: selectedAttribs,
-    };
-  };
-  const onChangeSecureConfig = React.useCallback(
-    (
-      event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
-      newValue?: string
-    ) => {
-      setSecureConfig(newValue);
-    },
-    []
-  );
+  // const onChangeSecureConfig = React.useCallback(
+  //   (
+  //     event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
+  //     newValue?: string
+  //   ) => {
+  //     setSecureConfig(newValue);
+  //   },
+  //   []
+  // );
   const onChangeUnsecureConfig = React.useCallback(
     (
       event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -219,9 +249,6 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
     },
     []
   );
-  const onChangeSelectedMessage = React.useCallback((message: string) => {
-    setSelectedMessage(message as Register.sdkMessage);
-  }, []);
   const onChangeSelectedMode = React.useCallback((message: string) => {
     setSelectedMode(message as Register.mode);
   }, []);
@@ -247,169 +274,262 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
     },
     []
   );
-  const onDismissDialog = React.useCallback(
-    ( ) => {
+  const onDismissDialog = React.useCallback(() => {
+    setPrimaryTable(undefined);
+  }, []);
+  const onResolveFilterAttributes = (
+    filterText: string,
+    selectedItems: ITag[] | undefined
+  ): ITag[] => {
+    return filterText
+      ? allAttributes
+          .filter((attr) => {
+            return (
+              attr.toLowerCase().indexOf(filterText.toLowerCase()) !== -1 &&
+              (!selectedItems ||
+                selectedItems.length === 0 ||
+                selectedItems.filter((x) => x.key !== attr).length ===
+                  selectedItems?.length)
+            );
+          })
+          .map((x) => {
+            return { key: x, name: x };
+          })
+      : [];
+  };
+  const getTableAttributes = React.useCallback(
+    (tablename: string | undefined) => {
+      setFormReady(false);
+      if (tablename) {
+        props.webApi.retrieveMultipleRecords(tablename, undefined, 1).then(
+          (e) => {
+            if (e.entities.length === 0) {
+              setHasRows(false);
+            } else {
+              setFormReady(true);
+              let attribs: string[] = [];
 
-    },[]
-  )
+              Object.entries(e.entities[0]).forEach(([key, _]) =>
+                attribs.push(key)
+              );
+              //The return object from a RetrieveMultiple when no Select params are attached includes all columns,
+              //but this also includes _value and @odata columns we need to filter out, so this line cleans our set of colnames
+              //down to just valid columns for a metadata retrieve
+              setAllAttributes(
+                attribs
+                  .filter((x) => !x.match("@"))
+                  .map((x) =>
+                    x.match("^_") ? x.substring(1, x.length - 6) : x
+                  )
+              );
+            }
+          },
+          (err) => {
+            console.log(err);
+          }
+        );
+      }
+    },
+    []
+  );
+  const defaultStepName = function (
+    tablename: string | undefined,
+    messageName: Register.sdkMessage
+  ) {
+    if (tablename) {
+      setStepName(`${props.pluginName}: ${messageName} of ${tablename}`);
+    } else if (primaryTable) {
+      setStepName(`${props.pluginName}: ${messageName} of ${primaryTable}`);
+    }
+  };
+  const onClickRegister = () => {
+    let registration: Register.step = {
+      Id: props.stepId,
+      StepName: stepName!,
+      SdkMessage: selectedMessage,
+      Stage: selectedStage,
+      Mode: selectedMode,
+      primaryTable: primaryTable!,
+      secondaryTable: "",
+      executionOrder: executionOrder,
+      description: "A Power Fx Plugin",
+      unsecureConfig: unsecureConfig ?? "",
+      secureConfig: secureConfig ?? "",
+      filterAttributes: selectedAttribs,
+    };
+    props.callback(registration);
+  };
   //#endregion
 
   return (
     <>
-    <Dialog hidden={hasRows} onDismiss={onDismissDialog} modalProps={_modalProps} />
-    <Stack tokens={{ childrenGap: 15 }}>
-      {/* header */}
-      <StackItem
-        align="baseline"
-        styles={{ root: { width: 525, textAlign: "center" } }}
+      <Dialog
+        hidden={hasRows}
+        onDismiss={onDismissDialog}
+        dialogContentProps={_dialogContentProps}
       >
-        <Text variant="xLarge">Register Plugin Execution</Text>
-      </StackItem>
-      <Stack horizontal tokens={{ childrenGap: 30 }}>
-        <Stack tokens={stackTokens}>
-          {/* table */}
-          <StackItem align="start" styles={{ root: { textAlign: "left" } }}>
-            <ComboBox
-              label="Primary Table"
-              options={allTables}
-              styles={{ root: { width: 225 } }}
-              allowFreeform
-              autoComplete="on"
-              onChange={onChangePrimaryTable}
-            />
-          </StackItem>
-          {/* sdkMessage */}
-          <StackItem align="baseline">
-            <ChoiceGroup
-              options={sdkMessageChoices}
-              defaultChecked={true}
-              defaultSelectedKey={selectedMessage.toString()}
-              onChange={(_, option) => {
-                onChangeSelectedMessage(option!.text);
-              }}
-              label="Select the SDK Message"
-              required={true}
-            />
-          </StackItem>
-          {/* Filter Attribs */}
-          <StackItem align="start" styles={{ root: { textAlign: "left" } }}>
-            <Stack tokens={{ childrenGap: 5 }}>
-              <Text
-                variant="medium"
-                styles={{ root: { "font-weight": 600, textAlign: "left" } }}
-              >
-                Select Filtering Atributes
-              </Text>
-              <TagPicker
-                removeButtonAriaLabel="Remove attribute"
-                selectionAriaLabel="Select filtering attributes"
-                onResolveSuggestions={onResolveFilterAttributes}
-                getTextFromItem={(item: ITag) => item.name}
-                pickerSuggestionsProps={pickerSuggestionsProps}
-                disabled={!formReady}
+        <DialogFooter>
+          <PrimaryButton onClick={() => setHasRows(true)} text="OK" />
+        </DialogFooter>
+      </Dialog>
+      <Stack tokens={{ childrenGap: 15 }}>
+        {/* header */}
+        <StackItem
+          align="baseline"
+          styles={{ root: { width: 525, textAlign: "center" } }}
+        >
+          <Text variant="xLarge">Register Plugin Execution</Text>
+        </StackItem>
+        <Stack horizontal tokens={{ childrenGap: 30 }}>
+          <Stack tokens={stackTokens}>
+            {/* table */}
+            <StackItem align="start" styles={{ root: { textAlign: "left" } }}>
+              <ComboBox
+                label="Primary Table"
+                options={allTables}
                 styles={{ root: { width: 225 } }}
-                onChange={onAttributesChanged}
+                allowFreeform
+                autoComplete="on"
+                onChange={onChangePrimaryTable}
+                text={primaryTable}
               />
-            </Stack>
-          </StackItem>
-          {/* Stage */}
-          <StackItem align="baseline">
-            <ChoiceGroup
-              options={stageChoices}
-              disabled={!formReady}
-              defaultChecked={true}
-              defaultSelectedKey={selectedStage}
-              onChange={(_, option) => {
-                onChangeSelectedStage(option!.text);
-              }}
-              label="Select the plugin execution stage"
-              required={true}
-            />
-          </StackItem>
-          {/* mode */}
-          <StackItem align="baseline">
-            <ChoiceGroup
-              options={modeChoices}
-              disabled={!formReady}
-              defaultChecked={true}
-              defaultSelectedKey={selectedMode}
-              onChange={(_, option) => {
-                onChangeSelectedMode(option!.text);
-              }}
-              label="Select the plugin execution mode"
-              required={true}
-            />
-          </StackItem>
+            </StackItem>
+            {/* sdkMessage */}
+            <StackItem align="baseline">
+              <ChoiceGroup
+                options={sdkMessageChoices}
+                defaultChecked={true}
+                selectedKey={selectedMessage.toString()}
+                onChange={onChangeSelectedMessage}
+                label="Select the SDK Message"
+                required={true}
+              />
+            </StackItem>
+            {/* Filter Attribs */}
+            <StackItem align="start" styles={{ root: { textAlign: "left" } }}>
+              <Stack tokens={{ childrenGap: 5 }}>
+                <Text
+                  variant="medium"
+                  styles={{ root: { "font-weight": 600, textAlign: "left" } }}
+                >
+                  Select Filtering Atributes
+                </Text>
+                <TagPicker
+                  removeButtonAriaLabel="Remove attribute"
+                  selectionAriaLabel="Select filtering attributes"
+                  onResolveSuggestions={onResolveFilterAttributes}
+                  getTextFromItem={(item: ITag) => item.name}
+                  pickerSuggestionsProps={pickerSuggestionsProps}
+                  disabled={!formReady}
+                  styles={{ root: { width: 225 } }}
+                  onChange={onAttributesChanged}
+                  selectedItems={selectedAttribs.map((x) => {
+                    return { key: x, name: x };
+                  })}
+                />
+              </Stack>
+            </StackItem>
+            {/* Stage */}
+            <StackItem align="baseline">
+              <ChoiceGroup
+                options={stageChoices}
+                disabled={!formReady}
+                defaultChecked={true}
+                selectedKey={selectedStage}
+                onChange={(_, option) => {
+                  onChangeSelectedStage(option!.text);
+                }}
+                label="Select the plugin execution stage"
+                required={true}
+              />
+            </StackItem>
+            {/* mode */}
+            <StackItem align="baseline">
+              <ChoiceGroup
+                options={modeChoices}
+                disabled={!formReady}
+                defaultChecked={true}
+                selectedKey={selectedMode}
+                onChange={(_, option) => {
+                  onChangeSelectedMode(option!.text);
+                }}
+                label="Select the plugin execution mode"
+                required={true}
+              />
+            </StackItem>
+          </Stack>
+          <Stack tokens={stackTokens}>
+            {/* stepname */}
+            <StackItem align="start">
+              <TextField
+                label="Step Name"
+                value={stepName}
+                disabled={!formReady}
+                onChange={onChangeStepName}
+                styles={textFieldStyles}
+                required={true}
+              />
+            </StackItem>
+            {/* order */}
+            <StackItem align="start">
+              <SpinButton
+                label="Execution Order"
+                labelPosition={Position.top}
+                value={executionOrder.toString()}
+                min={1}
+                max={99}
+                step={1}
+                disabled={!formReady}
+                incrementButtonAriaLabel="Increase value by 1"
+                decrementButtonAriaLabel="Decrease value by 1"
+                styles={{
+                  spinButtonWrapper: { width: 225 },
+                  root: { textAlign: "left" },
+                }}
+                onChange={onChangeExecutionOrder}
+              />
+            </StackItem>
+            {/* unsecure */}
+            <StackItem align="baseline">
+              <TextField
+                label="Unsecure Config"
+                multiline
+                autoAdjustHeight
+                rows={15}
+                disabled={!formReady}
+                styles={{ root: { textAlign: "left", width: 225 } }}
+                onChange={onChangeUnsecureConfig}
+                value={unsecureConfig}
+              />
+            </StackItem>
+            {/* secure: leaving this out for now: rendering a secureconfig in plaintext on a record seems to defeat the point, doesn't it? */}
+            {/* <StackItem align="baseline">
+              <TextField
+                label="Secure Config"
+                multiline
+                autoAdjustHeight
+                rows={7}
+                styles={{ root: { textAlign: "left", width: 225 } }}
+                onChange={onChangeSecureConfig}
+                disabled={!formReady}
+              />
+            </StackItem> */}
+            {/* go button */}
+          </Stack>
         </Stack>
-        <Stack tokens={stackTokens}>
-          {/* stepname */}
-          <StackItem align="start">
-            <TextField
-              label="Step Name"
-              value={stepName}
-              disabled={!formReady}
-              onChange={onChangeStepName}
-              styles={textFieldStyles}
-              required={true}
-            />
-          </StackItem>
-          {/* order */}
-          <StackItem align="start">
-            <SpinButton
-              label="Execution Order"
-              labelPosition={Position.top}
-              defaultValue={executionOrder.toString()}
-              min={1}
-              max={99}
-              step={1}
-              disabled={!formReady}
-              incrementButtonAriaLabel="Increase value by 1"
-              decrementButtonAriaLabel="Decrease value by 1"
-              styles={{
-                spinButtonWrapper: { width: 225 },
-                root: { textAlign: "left" },
-              }}
-              onChange={onChangeExecutionOrder}
-            />
-          </StackItem>
-          {/* unsecure */}
-          <StackItem align="baseline">
-            <TextField
-              label="Unsecure Config"
-              multiline
-              autoAdjustHeight
-              rows={7}
-              disabled={!formReady}
-              styles={{ root: { textAlign: "left", width: 225 } }}
-              onChange={onChangeUnsecureConfig}
-            />
-          </StackItem>
-          {/* secure */}
-          <StackItem align="baseline">
-            <TextField
-              label="Secure Config"
-              multiline
-              autoAdjustHeight
-              rows={7}
-              styles={{ root: { textAlign: "left", width: 225 } }}
-              onChange={onChangeSecureConfig}
-              disabled={!formReady}
-            />
-          </StackItem>
-          {/* go button */}
-        </Stack>
+        <StackItem
+          align="center"
+          styles={{ root: { width: 525, textAlign: "center" } }}
+        >
+          <PrimaryButton
+            text="Register Plugin"
+            onClick={onClickRegister}
+            allowDisabledFocus
+            disabled={!formReady}
+            styles={{ root: { textAlign: "center" } }}
+          />
+        </StackItem>
       </Stack>
-      <StackItem align="baseline" styles={{ root: { width: 525 } }}>
-        <PrimaryButton
-          text="Register Plugin"
-          onClick={() => {
-            onClickRegister;
-          }}
-          allowDisabledFocus
-          disabled={!formReady}
-        />
-      </StackItem>
-    </Stack>
     </>
   );
 };

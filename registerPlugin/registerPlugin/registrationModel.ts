@@ -1,6 +1,5 @@
 export class step{
     public Id: string | null;
-    public AssemblyName: string;
     public StepName: string;
     public SdkMessage: sdkMessage;
     public Stage: stage
