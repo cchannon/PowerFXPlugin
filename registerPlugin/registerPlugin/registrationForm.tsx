@@ -6,7 +6,6 @@ import {
   IChoiceGroupOption,
   IComboBox,
   IComboBoxOption,
-  IModalProps,
   IStackTokens,
   ITag,
   ITextFieldStyles,
@@ -18,10 +17,8 @@ import {
   TagPicker,
   Text,
   TextField,
-  ContextualMenu,
   DialogType,
   DialogFooter,
-  DefaultButton,
 } from "@fluentui/react";
 import * as React from "react";
 import * as Register from "./registrationModel";
@@ -59,21 +56,6 @@ const sdkMessageChoices: IChoiceGroupOption[] = [
   { key: "Delete", text: "Delete" },
   { key: "Update", text: "Update" },
 ];
-//#endregion
-
-//#region State Defaults
-let _selectedMessage: Register.sdkMessage = "Create";
-let _selectedStage: Register.stage = "Pre-validation";
-let _selectedMode: Register.mode = "Asynchronous";
-let _selectedAttribs: string[] = [];
-let _primaryTable: string | undefined = "";
-let _attributes: string[] = [];
-let _stepName: string | undefined = "";
-let _secureConfig: string | undefined = "";
-let _unsecureConfig: string | undefined = "";
-let _executionOrder: number = 1;
-let _allTables: IComboBoxOption[] = [];
-let _defaulted: boolean = false;
 const _dialogContentProps = {
   type: DialogType.normal,
   title: "No Rows Found",
@@ -81,6 +63,22 @@ const _dialogContentProps = {
   subText:
     "No Rows were found on this selected table. At least one row must exist before you can register the plugin step.",
 };
+//#endregion
+
+//#region State Defaults
+let _selectedMessage: Register.sdkMessage = "Create";
+let _selectedStage: Register.stage = "Pre-validation";
+let _selectedMode: Register.mode = "Synchronous";
+let _selectedAttribs: string[] = [];
+let _primaryTable: string | undefined = "";
+let _attributes: string[] = [];
+let _stepName: string | undefined = "";
+let _secureConfig: string | undefined = "";
+let _unsecureConfig: string | undefined =
+  window.location.href.split("=")[window.location.href.split("=").length - 1];
+let _executionOrder: number = 1;
+let _allTables: IComboBoxOption[] = [];
+let _defaulted: boolean = false;
 //#endregion
 
 export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
@@ -496,7 +494,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
                 multiline
                 autoAdjustHeight
                 rows={15}
-                disabled={!formReady}
+                disabled={true}
                 styles={{ root: { textAlign: "left", width: 225 } }}
                 onChange={onChangeUnsecureConfig}
                 value={unsecureConfig}
@@ -522,7 +520,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
           styles={{ root: { width: 525, textAlign: "center" } }}
         >
           <PrimaryButton
-            text="Register Plugin"
+            text={props.stepId ? "Update Plugin" : "Register Plugin"}
             onClick={onClickRegister}
             allowDisabledFocus
             disabled={!formReady}
