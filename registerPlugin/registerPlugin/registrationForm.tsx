@@ -21,12 +21,13 @@ import {
   DialogFooter,
 } from "@fluentui/react";
 import * as React from "react";
+import { IInputs } from "./generated/ManifestTypes";
 import * as Register from "./registrationModel";
 
 export interface IRegProps {
   pluginName: string | null;
   stepId: string | null;
-  webApi: ComponentFramework.WebApi;
+  context: ComponentFramework.Context<IInputs>;
   callback: (parameters: Register.step) => void;
 }
 
@@ -74,11 +75,9 @@ let _primaryTable: string | undefined = "";
 let _attributes: string[] = [];
 let _stepName: string | undefined = "";
 let _secureConfig: string | undefined = "";
-let _unsecureConfig: string | undefined =
-  window.location.href.split("=")[window.location.href.split("=").length - 1];
+let _unsecureConfig: string | undefined = "";
 let _executionOrder: number = 1;
 let _allTables: IComboBoxOption[] = [];
-let _defaulted: boolean = false;
 //#endregion
 
 export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
@@ -95,9 +94,10 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
   const [secureConfig, setSecureConfig] = React.useState(_secureConfig);
   const [unsecureConfig, setUnsecureConfig] = React.useState(_unsecureConfig);
   const [executionOrder, setExecutionOrder] = React.useState(_executionOrder);
-  const [formReady, setFormReady] = React.useState(false);
   const [allTables, setAllTables] = React.useState(_allTables);
+  const [formReady, setFormReady] = React.useState(false);
   const [hasRows, setHasRows] = React.useState(true);
+  const [defaulted, setDefaulted] = React.useState(false);
 
   //#endregion
 
@@ -112,8 +112,8 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
   }
 
   //Get Existing Step Config and default values
-  if (props.stepId && !_defaulted) {
-    props.webApi
+  if (props.stepId && !defaulted) {
+    props.context.webAPI
       .retrieveRecord(
         "sdkmessageprocessingstep",
         props.stepId,
@@ -121,7 +121,6 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
       )
       .then(
         (success) => {
-          _defaulted = true;
           if (success.sdkmessagefilterid.primaryobjecttypecode) {
             //this one needs its own handler so we can unlock the rest of the form (text prop doesn't actually fire change event on combobox)
             onDefaultPrimaryTable(
@@ -155,6 +154,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
           if (success.name) {
             setStepName(success.name);
           }
+          setDefaulted(true);
         },
         (error) => {
           //handle error with a modal popup
@@ -165,7 +165,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
 
   //Get Tables
   if (allTables.length === 0) {
-    props.webApi
+    props.context.webAPI
       .retrieveMultipleRecords(
         "entity",
         "?$select=collectionname,logicalname&$filter=collectionname ne null"
@@ -184,6 +184,17 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
           })
         );
       });
+  }
+
+  if (
+    unsecureConfig !=
+    window.location.href.split("=")[window.location.href.split("=").length - 1]
+  ) {
+    setUnsecureConfig(
+      window.location.href.split("=")[
+        window.location.href.split("=").length - 1
+      ]
+    );
   }
 
   //#region Change Handlers
@@ -238,15 +249,15 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
   //   },
   //   []
   // );
-  const onChangeUnsecureConfig = React.useCallback(
-    (
-      event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
-      newValue?: string
-    ) => {
-      setUnsecureConfig(newValue);
-    },
-    []
-  );
+  // const onChangeUnsecureConfig = React.useCallback(
+  //   (
+  //     event: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
+  //     newValue?: string
+  //   ) => {
+  //     setUnsecureConfig(newValue);
+  //   },
+  //   []
+  // );
   const onChangeSelectedMode = React.useCallback((message: string) => {
     setSelectedMode(message as Register.mode);
   }, []);
@@ -297,35 +308,18 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
   };
   const getTableAttributes = React.useCallback(
     (tablename: string | undefined) => {
-      setFormReady(false);
       if (tablename) {
-        props.webApi.retrieveMultipleRecords(tablename, undefined, 1).then(
-          (e) => {
-            if (e.entities.length === 0) {
-              setHasRows(false);
-            } else {
-              setFormReady(true);
-              let attribs: string[] = [];
-
-              Object.entries(e.entities[0]).forEach(([key, _]) =>
-                attribs.push(key)
-              );
-              //The return object from a RetrieveMultiple when no Select params are attached includes all columns,
-              //but this also includes _value and @odata columns we need to filter out, so this line cleans our set of colnames
-              //down to just valid columns for a metadata retrieve
-              setAllAttributes(
-                attribs
-                  .filter((x) => !x.match("@"))
-                  .map((x) =>
-                    x.match("^_") ? x.substring(1, x.length - 6) : x
-                  )
-              );
-            }
+        props.context.utils.getEntityMetadata(tablename).then(
+          (success) => {
+            setFormReady(true);
+            setAllAttributes(success._entityDescriptor.AttributeNames);
           },
           (err) => {
             console.log(err);
           }
         );
+      } else {
+        setFormReady(false);
       }
     },
     []
@@ -390,6 +384,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
                 autoComplete="on"
                 onChange={onChangePrimaryTable}
                 text={primaryTable}
+                disabled={unsecureConfig?.indexOf("-") === -1}
               />
             </StackItem>
             {/* sdkMessage */}
@@ -401,6 +396,7 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
                 onChange={onChangeSelectedMessage}
                 label="Select the SDK Message"
                 required={true}
+                disabled={unsecureConfig?.indexOf("-") === -1}
               />
             </StackItem>
             {/* Filter Attribs */}
@@ -496,8 +492,10 @@ export const RegisterForm: React.FC<IRegProps> = (props: IRegProps) => {
                 rows={15}
                 disabled={true}
                 styles={{ root: { textAlign: "left", width: 225 } }}
-                onChange={onChangeUnsecureConfig}
-                value={unsecureConfig}
+                //onChange={onChangeUnsecureConfig}
+                value={
+                  unsecureConfig?.indexOf("-") === -1 ? "" : unsecureConfig
+                }
               />
             </StackItem>
             {/* secure: leaving this out for now: rendering a secureconfig in plaintext on a record seems to defeat the point, doesn't it? */}

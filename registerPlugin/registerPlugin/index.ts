@@ -28,7 +28,7 @@ export class registerplugin implements ComponentFramework.ReactControl<IInputs, 
         const props: IRegProps = {
             pluginName: context.parameters.plugin.raw,
             stepId: context.parameters.pluginStep.raw,
-            webApi: context.webAPI,
+            context: context,
             callback: this.callback.bind(this)
         };
         return React.createElement(
